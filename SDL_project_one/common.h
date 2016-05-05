@@ -17,6 +17,8 @@
 
 //Appends to the end of the string
 void COM_strcat(int8* dest, const int8* src);
+//Appends tot he end of the string and inserts 'char' after
+void COM_strcat(int8* dest, const int8* src, char c);
 //Copy string from src to dest
 void COM_strcpy(int8* dest, const int8* src);
 //Copy desired size of string from src to dest

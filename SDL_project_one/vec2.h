@@ -76,6 +76,27 @@ inline vec2& operator*=(vec2& a, float b)
 	return a;
 }
 
+inline real32 Dot(vec2 a, vec2 b)
+{
+	real32 result;
+	result = (a.x * b.x) + (a.y + b.y);
+	return result;
+}
+
+inline real32 MagnitudeSqr( vec2 a )
+{
+	real32 result;
+	result = Dot(a, a);
+	return result;
+}
+
+inline real32 Magnitude( vec2 a )
+{
+	real32 result;
+	result = sqrt(MagnitudeSqr(a));
+	return result;
+}
+
 inline real32 Distance( vec2 a, vec2 b)
 {
 	real32 result;
@@ -83,4 +104,10 @@ inline real32 Distance( vec2 a, vec2 b)
 	return result;
 }
 
+inline real32 DistanceSqr( vec2 a, vec2 b)
+{
+	real32 result;
+	result = (((a.x - b.x)*(a.x - b.x)) + ((a.y - b.y) * (a.y - b.y)));
+	return result;
+}
 #endif

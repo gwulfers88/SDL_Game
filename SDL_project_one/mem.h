@@ -18,16 +18,15 @@
 	memory block is valid. It is also 16 bytes aligned.
 
 	---------------TOP OF MEMORY-----------------
+	resource allocations.
 	
-	To be discussed later. Currently all memory is
-	stored from the bottom up. 
-
-	resource allocations mixed between entities.
 	entity allocations
 	system allocations
 	---------------BOTTOM OF MEMORY-----------------
 
 	use MemCheck(void) to get a print out of the memory map.
+
+	Still working out this system.
 */
 
 #ifndef MEM_H
@@ -36,10 +35,10 @@
 #include "common.h"
 
 #define MEMORY_SENTINAL 0x1df0013d	//Borrowed this from id Software.
-const int32 MEMORY_SIZE = Kilobytes(16);
+const uint32 MEMORY_SIZE = Kilobytes(16);	//Total Memory size used by Game (will be changed to Mb later on.)
 
-void MemoryInit(void *Buffer, int32 BufferSize);
-void *MemAllocName(uint32 RequestSize, int8* RequestName);
+void MemoryInit(void *Buffer, int32 BufferSize);					//Initialize the memory buffer.
+void *MemAllocName(uint32 RequestSize, int8* RequestName);			//Allocates memory to the bottom of the memory
 void *MemAlloc(uint32 RequestSize);
 void FreeMemBlock(void);
 void FreeToLowMark(int32 Mark);

@@ -23,12 +23,18 @@ public:
 	void Draw(SDL_Renderer* renderer) override;
 
 protected:
+	SDL_RendererFlip flip;
+
 	uint32 frame;
 	AnimInfo anim;
 
 	uint32 prevTime;
 
 	bool animate;
+	bool isJumping;
+	bool isGrounded;
+	bool isCrouching;
+	
 	int32 facingDir;
 
 };

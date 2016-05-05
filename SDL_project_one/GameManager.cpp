@@ -13,7 +13,7 @@
 // HOMEWORK: Make player change animations with key presses, multiple animations.
 //TODO: Fix player struct and animations.
 
-ifstream file;
+ifstream levelFile;
 
 struct Object
 {
@@ -67,8 +67,6 @@ bool GameManager::Init()
 	if (renderer == 0)
 		return false;
 
-	SDL_SetRenderDrawColor(renderer, 50, 100, 200, 255);
-
 	return true;
 }
 
@@ -106,6 +104,12 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 			
 		if(evnt.key.keysym.sym == SDLK_d || evnt.key.keysym.sym == SDLK_RIGHT)
 			input.actionRight.isDown = true;
+
+		if(evnt.key.keysym.sym == SDLK_1)
+			input.numOne.isDown = true;
+
+		if(evnt.key.keysym.sym == SDLK_2)
+			input.numTwo.isDown = true;
 		break;
 
 	case SDL_KEYUP:
@@ -133,6 +137,11 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 		if(evnt.key.keysym.sym == SDLK_d || evnt.key.keysym.sym == SDLK_RIGHT)
 			input.actionRight.isDown = false;
 
+		if(evnt.key.keysym.sym == SDLK_1)
+			input.numOne.isDown = false;
+
+		if(evnt.key.keysym.sym == SDLK_2)
+			input.numTwo.isDown = false;
 		break;
 
 	case SDL_MOUSEBUTTONDOWN:
@@ -238,6 +247,143 @@ vec2 GameManager::DimFromTexture(SDL_Texture* texture)
 //Loads content that will be used for this game
 void GameManager::LoadContent()
 {
+	//LOAD LEVEL ONE INFO
+	levelFile.open("level1.txt");
+
+	if(levelFile.fail())
+		return;
+
+	char type[8] = {0};
+	char lEdge[20] = {0};
+	char rEdge[20] = {0};
+	char mid[20] = {0};
+	char block[20] = {0};
+	char bush[20] = {0};
+
+	int layer = 0;
+
+	vec2 playerPos = {0};
+
+	int tileW = 0;
+	int tileH = 0;
+
+	char data[256] = {0};
+
+	int y = 0;
+
+	//Read jump header info
+	levelFile.getline(data, sizeof(data));
+	levelFile >> tileW >> tileH >> type;
+	levelFile >> lEdge >> rEdge >> mid >> block >> bush;
+	levelFile >> layer;
+
+	while(!levelFile.eof())
+	{
+		if( y == 6)
+		{
+			y = 0;
+			layer++;
+		}
+
+		ZeroMemory(data, sizeof(data));
+		levelFile >> data;
+		
+		if(data[0] == '#')
+		{
+			levelFile.getline(data, sizeof(data));
+			continue;
+		}
+
+		int x = 0;
+
+		while(x != 8)
+		{	
+			Entity *entity = nullptr;
+
+			switch(data[x])
+			{
+			case 'e':
+				break;
+
+			case 'b':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "floorB");
+				new (entity) Entity;
+				entity->dims = Vec2(tileW, tileH);
+				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
+				COM_strncpy(entity->type, "block", 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(block);
+				entity->CalculateMidpoint();
+				entities.Insert(entity);
+				break;
+
+			case 'u':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "bush");
+				new (entity) Entity;
+				entity->dims = Vec2(tileW, tileH);
+				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
+				COM_strncpy(entity->type, "bush", 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(bush);
+				entity->CalculateMidpoint();
+				entities.Insert(entity);
+				break;
+
+			case 'l':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "floorL");
+				new (entity) Entity;
+				entity->dims = Vec2(tileW, tileH);
+				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
+				COM_strncpy(entity->type, type, 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(lEdge);
+				entity->CalculateMidpoint();
+				entities.Insert(entity);
+				break;
+
+			case 'm':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "floorM");
+				new (entity) Entity;
+				entity->dims = Vec2(tileW, tileH);
+				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
+				COM_strncpy(entity->type, type, 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(mid);
+				entity->CalculateMidpoint();
+				entities.Insert(entity);
+				break;
+
+			case 'r':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "floorR");
+				new (entity) Entity;
+				entity->dims = Vec2(tileW, tileH);
+				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
+				COM_strncpy(entity->type, type, 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(rEdge);
+				entity->CalculateMidpoint();
+				entities.Insert(entity);
+				break;
+
+			case 'p':
+				playerPos = Vec2(x, y);
+				break;
+			}
+
+			x++;
+		}
+
+		y++;
+
+		if(levelFile.fail())
+			continue;
+	}
+
+	levelFile.close();
+
+	/// CONFIG FILE LOADING
+
+	ifstream file;
 	file.open("config.txt");
 
 	if(file.fail())
@@ -279,20 +425,21 @@ void GameManager::LoadContent()
 		{
 			temp = (Player*)MemAllocName(sizeof(Player), obj.name);
 			new(temp) Player;	//Initialize the class constructor.
-			
 			player = (Player*)temp;	//Isolate player
+			temp->pos = Vec2(playerPos.x * obj.dims.x, playerPos.y * obj.dims.x);
+			temp->speed = 5;
 		}
 		else
 		{
 			temp = (Entity*)MemAllocName(sizeof(Entity), obj.name);
 			new(temp) Entity;	//Initialize the class constructor.
+			temp->pos = Vec2(obj.pos.x, obj.pos.y);
 		}
 		
 		//
 		temp->layer = obj.layer;
 		COM_strncpy(temp->type, obj.type, 8);	//Copy only the first 8 bytes of the string.
 		temp->texture = LoadTexture(obj.filename);
-		temp->pos = Vec2(obj.pos.x, obj.pos.y);
 		
 		//if BG type
 		if(!COM_strcmp(obj.type, "bg"))
@@ -332,6 +479,9 @@ void GameManager::Run()
 	// Run app
 	isRunning = true;
 
+	COM_print("\nCONTROLS:\n\tMOVE: WASD keys or Arrow Keys.\n\tJUMP: Space bar.\n\tDrop from platform: S + E.");
+	COM_print("\n\tDEBUG start: 2 key.\n\tDEBUG end: 1 keys.\n");
+
 	//Game loop
 	while(isRunning)
 	{
@@ -366,7 +516,7 @@ bool GameManager::Collision(Entity* A, Entity* B)
 {
 	if((A->pos.x + 32 < B->pos.x + B->dims.x &&
 		A->pos.x + A->dims.x - 32 > B->pos.x &&
-		A->pos.y < B->pos.y + B->dims.y &&
+		A->pos.y < B->pos.y + B->center.y &&
 		A->dims.y + A->pos.y > B->pos.y))
 	{
 		return true;
@@ -375,11 +525,11 @@ bool GameManager::Collision(Entity* A, Entity* B)
 	return false;
 }
 
-bool isJumping = false;
-bool isGrounded = false;
-bool isCrouching = false;
+//TODO: This can be part of the program or renderer
+bool showDebug = false;
 
-real32 gravity = -3.f;
+//TODO: create a world structure that holds level data
+real32 gravity = -2.f;
 
 // Update logic procedures
 void GameManager::Update()
@@ -395,32 +545,41 @@ void GameManager::Update()
 	{
 		player->animate = true;
 		dir.x = -1;
+		//player->flip = SDL_FLIP_NONE;
 		player->facingDir = 0;
 	}
 	else if(input.actionRight.isDown)
 	{
 		player->animate = true;
 		dir.x = 1;
+		//player->flip = SDL_FLIP_HORIZONTAL; we can flip our sprite if we dont have the correct animation on file.
 		player->facingDir = 1;
 	}
-	//dir *= 2.0f;	//scale direction vector by 'speed'
-		
-	isCrouching = input.actionDown.isDown;
+	
+#if _DEBUG
+	//Show Debug Toggle (DEBUG ONLY)
+	if(input.numTwo.isDown)
+		showDebug = true;
+	else if(input.numOne.isDown)
+		showDebug = false;
+#endif
+
+	player->isCrouching = input.actionDown.isDown;
 	
 	if(input.actionDown.isDown && input.rightBumper.isDown)
 	{
 		player->layer++;
 	}
 
-	if(input.start.isDown && !isJumping && isGrounded)
+	if(input.start.isDown && !player->isJumping && player->isGrounded)
 	{
-		isJumping = true;
-		isGrounded = false;
+		player->isJumping = true;
+		player->isGrounded = false;
 	}
 
 	int oldfacingDir = player->facingDir;
 
-	if(isCrouching)
+	if(player->isCrouching)
 	{
 		if(player->facingDir == 1)
 			player->facingDir = 9;
@@ -430,10 +589,10 @@ void GameManager::Update()
 	else
 		player->facingDir = oldfacingDir;
 
-	if(isJumping)
+	if(player->isJumping)
 	{
-		dir.y = -40;
-		isJumping = false;
+		dir.y = -30;
+		player->isJumping = false;
 	}
 
 	dir.y -= gravity;
@@ -452,17 +611,17 @@ void GameManager::Update()
 			if(Collision(player, obj))
 			{
 				if( player->pos.y > obj->pos.y + obj->center.y &&
-					player->pos.y + player->center.y > obj->pos.y + obj->dims.y)		//player Top
+					player->pos.y + player->center.y > obj->pos.y + obj->dims.y)			//player Top
 				{
-					real32 colOffsetY = (obj->pos.y + obj->dims.y) - (player->pos.y);	//Calculate how far in we went to go back by that much.
-					player->pos.y += colOffsetY - 2;									//Go back
+					real32 colOffsetY = (obj->pos.y + obj->dims.y) - (player->pos.y);		//Calculate how far in we went to go back by that much.
+					player->pos.y += colOffsetY - 2;										//Go back
 				}
 				else if(player->pos.y + player->center.y < obj->pos.y &&
 						player->pos.y + player->dims.y < obj->pos.y + obj->center.y)		//player Bottom
 				{
 					real32 colOffsetY = (player->pos.y + player->dims.y) - (obj->pos.y);	//Calculate how far in we went to go back by that much.
 					player->pos.y -= colOffsetY - 2;										//Go back
-					isGrounded = true;
+					player->isGrounded = true;
 				}
 				else if(player->pos.x + player->dims.x < obj->pos.x + obj->center.x &&
 					player->pos.x + player->center.x < obj->pos.x)							//player Right
@@ -470,10 +629,10 @@ void GameManager::Update()
 					real32 colOffsetX = (player->pos.x + player->dims.x) - (obj->pos.x);	//Calculate how far in we went to go back by that much.
 					player->pos.x -= colOffsetX;											//Go back
 				}
-				else if(player->pos.x > obj->pos.x + obj->center.x)						//player Left
+				else if(player->pos.x > obj->pos.x + obj->center.x)							//player Left
 				{
-					real32 colOffsetX = (obj->pos.x + obj->dims.x) - (player->pos.x);	//Calculate how far in we went to go back by that much.
-					player->pos.x += colOffsetX;										//Go back
+					real32 colOffsetX = (obj->pos.x + obj->dims.x) - (player->pos.x);		//Calculate how far in we went to go back by that much.
+					player->pos.x += colOffsetX;											//Go back
 				}
 			}
 		}
@@ -511,10 +670,10 @@ struct RenderObject
 	}
 };
 
-
 //Render procedure
 void GameManager::Render()
 {
+	SDL_SetRenderDrawColor(renderer, 50, 100, 200, 255);
 	SDL_RenderClear(renderer);	//Cear the buffer
 	
 	priority_queue<RenderObject> q;
@@ -532,13 +691,56 @@ void GameManager::Render()
 			q.push(renderObj);
 		}
 	}
-	
+
 	while(!q.empty())
 	{
 		RenderObject obj = q.top();
 		q.pop();
 		
-		obj.obj->Draw(renderer);		
+		if(showDebug)
+		{
+			if(obj.obj->layer == player->layer)
+			{
+				obj.obj->Draw(renderer);
+			}
+		}
+		else
+		{
+			obj.obj->Draw(renderer);		
+		}
+	}
+
+	if(showDebug)
+	{
+		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+		for(int y = 0; y < 6; y++)
+		{
+			for(int x = 0; x < 8; x++)
+			{
+				SDL_Rect rect;
+				rect.x = x * 128;
+				rect.y = y * 128;
+				rect.w = 128;
+				rect.h = 128;
+
+				SDL_RenderDrawRect(renderer, &rect);
+			}
+		}
+
+		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+		for(int i = 0; i < entities.GetCount(); i++)
+		{
+			if(!COM_strcmp(entities.GetByIndex(i)->type, "floor"))
+			{
+				SDL_Rect colRect;
+				colRect.x = entities.GetByIndex(i)->pos.x;
+				colRect.y = entities.GetByIndex(i)->pos.y;
+				colRect.w = entities.GetByIndex(i)->dims.x;
+				colRect.h = entities.GetByIndex(i)->center.y;
+
+				SDL_RenderDrawRect(renderer, &colRect);
+			}
+		}
 	}
 
 	SDL_RenderPresent(renderer);	//Send to screen and draw scene

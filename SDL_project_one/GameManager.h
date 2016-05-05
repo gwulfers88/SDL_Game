@@ -39,6 +39,9 @@ struct Controller
 {
 	MouseInput mouse;
 
+	Button numOne;
+	Button numTwo;
+
 	Button start;
 	Button back;
 	Button rightBumper;

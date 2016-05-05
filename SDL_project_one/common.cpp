@@ -12,8 +12,23 @@ void COM_strcat(int8* dest, const int8* src)
 	{
 		*dest++ = *src++;
 	}
+	*dest++ = 0;
+}
 
-	*dest++ = ' ';
+//Appends tot he end of the string and inserts 'char' after
+void COM_strcat(int8* dest, const int8* src, char c)
+{
+	while(*dest)
+	{
+		dest++;
+	}
+
+	while(*src)
+	{
+		*dest++ = *src++;
+	}
+
+	*dest++ = c;
 }
 
 //Copy string from src to dest

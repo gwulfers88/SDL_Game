@@ -1,8 +1,12 @@
 #include "Player.h"
 
-
 Player::Player(void)
 {
+	animate = false;
+	isJumping = false;
+	isGrounded = false;
+	isCrouching = false;
+
 	frame = 0;
 	prevTime = 0;
 	
@@ -10,7 +14,6 @@ Player::Player(void)
 	anim.maxFrame = 4;
 	anim.clipDims = Vec2(39, 39);
 	
-	animate = false;
 	facingDir = 0;
 }
 
@@ -58,5 +61,9 @@ void Player::Draw(SDL_Renderer* renderer)
 	src.x = facingDir * src.w;
 	src.y = frame * src.h;
 	
-	SDL_RenderCopy(renderer, texture, &src, &dest);
+	SDL_Point c;
+	c.x = center.x;
+	c.y = center.y;
+
+	SDL_RenderCopyEx(renderer, texture, &src, &dest, 0, &c, flip);
 }
