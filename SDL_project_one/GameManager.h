@@ -12,6 +12,7 @@
 #define GAME_MANAGER_H
 
 #include "common.h"
+#include "console.h"
 #include "Window.h"
 #include "SList.h"
 #include "Player.h"
@@ -99,6 +100,7 @@ private:
 	Player* player;
 	
 	Controller input;
+	Console console;
 };
 
 #endif

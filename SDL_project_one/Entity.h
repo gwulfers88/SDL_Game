@@ -34,6 +34,7 @@ protected:
 	vec2 pos;				//Position vector
 	vec2 dims;				//Dimension vector
 	vec2 center;
+	int32 tileID;
 	int32 layer;
 	int8 type[8];
 };

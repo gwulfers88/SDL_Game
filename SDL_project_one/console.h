@@ -1,70 +1,34 @@
-#ifndef WOLF_CONSOLE_H
-#define WOLF_CONSOLE_H
+#ifndef WULF_CONSOLE_H
+#define WULF_CONSOLE_H
 
 #include "common.h"
-#include "mem.h"
 
-#define MAX_ARGS 4
+//DEFINES
+#define SHOW_DEBUG_NONE		0x00000000
+#define SHOW_DEBUG_GRID		0x00000001
+#define SHOW_DEBUG_COLISION 0x00000010
+#define SHOW_DEBUG_LAYERS	0x00000100
+#define SHOW_DEBUG_CMD		0x00001000
 
-uint32 argsCount = 0;
-int8* args[MAX_ARGS];
+#define DEBUG_LAYERS_PLAYER	0x00000000
+#define DEBUG_LAYERS_ONE	0x00000001
+#define DEBUG_LAYERS_TWO	0x00000010
+#define DEBUG_LAYERS_THREE	0x00000100
+#define DEBUG_LAYERS_FOUR	0x00001000
 
-void InitCommandline()
+struct Console
 {
-	for(int i = 0; i < MAX_ARGS; i++)
-	{
-		args[i] = (int8*)MemHighAllocName(16, "cmdline");
-	}
-}
+	int8	input[256];
+	uint32	showDebug;
+	uint32	layerFlags;
+	bool	isConsoleActive;
+};
 
-void clearArgs()
-{
-	for(int i = 0; i < MAX_ARGS; i++)
-	{
-		COM_strncpy(args[i], "", 16);
-	}
-}
-
-void commandParser(int8* buffer)
-{
-	clearArgs();
-
-	argsCount = 0;
-	int count = 0;
-
-	if(*buffer == '/')
-	{
-		while(*buffer)
-		{
-			*args[argsCount]++ = *buffer++;
-			count++;
-
-			if(*buffer == ' ')
-			{
-				*args[argsCount] = 0;
-				args[argsCount] -= count;
-				count = 0;
-				buffer++;
-				argsCount++;
-			}
-		}
-
-		*args[argsCount] = 0;
-		args[argsCount] -= count;
-	}
-}
-
-bool checkCommand(const int8* command)
-{
-	return (!COM_strcmp(command, args[0]));
-}
-
-bool checkParam(const int8* parameter, uint32 index)
-{
-	if(index >= MAX_ARGS)
-		index = MAX_ARGS - 1;
-
-	return (!COM_strcmp(parameter, args[index]));
-}
+//FUNCTIONS PROTOTYPES
+void InitCommandline();									//Initialize comand line
+void clearArgs();										//clear argument list
+void commandParser(int8* buffer);						//parse command input from user
+bool checkCommand(const int8* command);					//check command
+bool checkParam(const int8* parameter, uint32 index);	//check parameter
 
 #endif

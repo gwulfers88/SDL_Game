@@ -15,6 +15,7 @@
 Entity::Entity(void)
 {
 	this->texture = 0;
+	tileID = -1;
 	ZeroMemory(&pos, sizeof(vec2));		//Init struct to 0 for all of its members.
 	ZeroMemory(&dims, sizeof(vec2));
 	ZeroMemory(&center, sizeof(vec2));
@@ -74,5 +75,21 @@ void Entity::Draw(SDL_Renderer* renderer)
 	c.x = (int32)center.x;
 	c.y = (int32)center.y;
 
-	SDL_RenderCopyEx(renderer, texture, 0, &dest, 0, &c, SDL_FLIP_NONE);
+	if(tileID >= 0)
+	{
+		uint32 tileX = (tileID % 7);
+		uint32 tileY = tileID / 7;
+
+		SDL_Rect src;
+		src.w = 128;
+		src.h = 128;
+		src.x = tileX * src.w;
+		src.y = tileY * src.h;
+
+		SDL_RenderCopyEx(renderer, texture, &src, &dest, 0, &c, SDL_FLIP_NONE);
+	}
+	else
+	{
+		SDL_RenderCopyEx(renderer, texture, 0, &dest, 0, &c, SDL_FLIP_NONE);
+	}
 }

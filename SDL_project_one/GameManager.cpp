@@ -10,11 +10,8 @@
 #include "GameManager.h"
 #include <SDL/SDL_ttf.h>
 #include "mem.h"
-#include "console.h"
 
-// HOMEWORK: Make player change animations with key presses, multiple animations.
-//TODO: Fix player struct and animations.
-
+//TODO: create file read and open functions
 ifstream levelFile;
 TTF_Font *font = 0;
 
@@ -117,15 +114,6 @@ bool GameManager::Init()
 	return true;
 }
 
-int8 console[256] = "";
-bool isConsoleActive = false;
-//TODO: Where to put this?
-#define SHOW_DEBUG_NONE		0x00000000
-#define SHOW_DEBUG_GRID		0x00000001
-#define SHOW_DEBUG_COLISION 0x00000010
-#define SHOW_DEBUG_LAYERS	0x00000100
-uint32 ShowDebug = SHOW_DEBUG_NONE;
-
 //Process events from Window and SDL. (Keyboard, Gamepad, joystick, and mouse inputs).
 void GameManager::SDLProcEvent(SDL_Event& evnt)
 {
@@ -137,55 +125,83 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 		break;
 
 	case SDL_TEXTINPUT:
-		if(isConsoleActive)
+		if(console.isConsoleActive)
 		{
-			COM_strcat(console, evnt.text.text);
+			COM_strcat(console.input, evnt.text.text);
 		}
 		break;
 
 	case SDL_KEYDOWN:
 		if(evnt.key.keysym.sym == SDLK_BACKSPACE)
 		{
-			if(isConsoleActive)
+			if(console.isConsoleActive)
 			{
-				uint32 size = COM_strlen(console);
+				uint32 size = COM_strlen(console.input);
 				if(size > 0)
 				{
-					console[size - 1] = 0;
+					console.input[size - 1] = 0;
 				}
 			}
 		}
 
 		if(evnt.key.keysym.sym == SDLK_SLASH)
-			isConsoleActive = true;
-
-		//TODO: Clean console command parser a bit.
-		if(evnt.key.keysym.sym == SDLK_RETURN && isConsoleActive)
+			console.isConsoleActive = true;
+		
+		if(evnt.key.keysym.sym == SDLK_RETURN && console.isConsoleActive)
 		{
-			isConsoleActive = false;
-			COM_strcat(console, "", '\0');
-			COM_convertLower(console);
-			commandParser(console);
-			ZeroMemory(console, sizeof(console));
+			console.isConsoleActive = false;
+			COM_strcat(console.input, "", '\0');
+			COM_convertLower(console.input);
+			commandParser(console.input);
+			ZeroMemory(console.input, sizeof(console.input));
 
-			//TODO: Change check function to separately check commands and multiple parameters
 			if(checkCommand("/show_debug"))
 			{
 				if(checkParam("all", 1))
 				{
-					ShowDebug ^= SHOW_DEBUG_GRID ^ SHOW_DEBUG_COLISION ^ SHOW_DEBUG_LAYERS;
+					console.showDebug ^= SHOW_DEBUG_GRID ^ SHOW_DEBUG_COLISION ^ SHOW_DEBUG_LAYERS;
 				}
 				else if(checkParam("grid", 1))
 				{
-					ShowDebug ^= SHOW_DEBUG_GRID;
+					console.showDebug ^= SHOW_DEBUG_GRID;
 				}
 				else if(checkParam("col", 1))
 				{
-					ShowDebug ^= SHOW_DEBUG_COLISION;
+					console.showDebug ^= SHOW_DEBUG_COLISION;
 				}
 				else if(checkParam("layers", 1))
 				{
-					ShowDebug ^= SHOW_DEBUG_LAYERS;
+					console.layerFlags = 0;
+
+					if(checkParam("\0", 2) || checkParam("", 2))
+					{
+						console.showDebug ^= SHOW_DEBUG_LAYERS;
+						console.layerFlags ^= DEBUG_LAYERS_PLAYER;
+					}
+					else if(checkParam("1", 2))
+					{
+						console.layerFlags ^= DEBUG_LAYERS_ONE;
+					}
+					else if(checkParam("2", 2))
+					{
+						console.layerFlags ^= DEBUG_LAYERS_TWO;
+					}
+					else if(checkParam("3", 2))
+					{
+						console.layerFlags ^= DEBUG_LAYERS_THREE;
+					}
+					else if(checkParam("4", 2))
+					{
+						console.layerFlags ^= DEBUG_LAYERS_FOUR;
+					}
+					else
+					{
+						console.showDebug ^= SHOW_DEBUG_LAYERS;
+					}
+				}
+				else if(checkParam("cmd", 1))
+				{
+					console.showDebug ^= SHOW_DEBUG_CMD;
 				}
 			}
 			else if(checkCommand("/exit"))
@@ -222,10 +238,10 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 				}
 			}
 		}
-		else if(evnt.key.keysym.sym == SDLK_RETURN && !isConsoleActive)
-			isConsoleActive = true;
+		else if(evnt.key.keysym.sym == SDLK_RETURN && !console.isConsoleActive)
+			console.isConsoleActive = true;
 
-		if(!isConsoleActive)
+		if(!console.isConsoleActive)
 		{
 			if(evnt.key.keysym.sym == SDLK_ESCAPE)
 				input.back.isDown = true;
@@ -261,7 +277,7 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 
 	case SDL_KEYUP:
 
-		if(!isConsoleActive)
+		if(!console.isConsoleActive)
 		{
 			if(evnt.key.keysym.sym == SDLK_ESCAPE)
 				input.back.isDown = false;
@@ -323,17 +339,15 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 		input.mouse.pos.x = (real32)evnt.motion.x;
 		input.mouse.pos.y = (real32)evnt.motion.y;
 		
-		uint32 tileX = ((int32)input.mouse.pos.x / 128);
-		uint32 tileY = ((int32)input.mouse.pos.y / 128);
-		uint32 tileID = (tileY * 8) + tileX;
+		//uint32 tileID = (tileY * 8) + tileX;
 		
-		uint32 dX = (tileID % 8);
-		uint32 dY = tileID / 8;
+		//uint32 dX = (tileID % 8);
+		//uint32 dY = tileID / 8;
 
-		COM_printf("tileID: %d\n", tileID);
-		COM_printf("derriv: %d, %d\n", dX, dY);
-		COM_printf("actual: %d, %d\n", tileX, tileY);
-		COM_printf("MouseD: %.02f, %.02f\n", input.mouse.pos.x, input.mouse.pos.y);
+		//COM_printf("tileID: %d\n", tileID);
+		//COM_printf("derriv: %d, %d\n", dX, dY);
+		//COM_printf("actual: %d, %d\n", tileX, tileY);
+		//COM_printf("MouseD: %.02f, %.02f\n", input.mouse.pos.x, input.mouse.pos.y);
 
 		break;
 	}
@@ -415,11 +429,7 @@ void GameManager::LoadContent()
 		return;
 
 	char type[8] = {0};
-	char lEdge[20] = {0};
-	char rEdge[20] = {0};
-	char mid[20] = {0};
-	char block[20] = {0};
-	char bush[20] = {0};
+	char imagefile[30] = {0};
 
 	int layer = 0;
 
@@ -435,7 +445,7 @@ void GameManager::LoadContent()
 	//Read jump header info
 	levelFile.getline(data, sizeof(data));
 	levelFile >> tileW >> tileH >> type;
-	levelFile >> lEdge >> rEdge >> mid >> block >> bush;
+	levelFile >> imagefile;
 	levelFile >> layer;
 
 	while(!levelFile.eof())
@@ -473,8 +483,9 @@ void GameManager::LoadContent()
 				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
 				COM_strncpy(entity->type, "block", 8);
 				entity->layer = layer;
-				entity->texture = LoadTexture(block);	//TODO: should we use and lookup Texture ID?
+				entity->texture = LoadTexture(imagefile);	//TODO: should we use and lookup Texture ID?
 				entity->CalculateMidpoint();
+				entity->tileID = 8;
 				entities.Insert(entity);
 				break;
 
@@ -485,8 +496,9 @@ void GameManager::LoadContent()
 				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
 				COM_strncpy(entity->type, "bush", 8);
 				entity->layer = layer;
-				entity->texture = LoadTexture(bush);
+				entity->texture = LoadTexture(imagefile);
 				entity->CalculateMidpoint();
+				entity->tileID = 4;
 				entities.Insert(entity);
 				break;
 
@@ -497,8 +509,9 @@ void GameManager::LoadContent()
 				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
 				COM_strncpy(entity->type, type, 8);
 				entity->layer = layer;
-				entity->texture = LoadTexture(lEdge);
+				entity->texture = LoadTexture(imagefile);
 				entity->CalculateMidpoint();
+				entity->tileID = 0;
 				entities.Insert(entity);
 				break;
 
@@ -509,8 +522,9 @@ void GameManager::LoadContent()
 				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
 				COM_strncpy(entity->type, type, 8);
 				entity->layer = layer;
-				entity->texture = LoadTexture(mid);
+				entity->texture = LoadTexture(imagefile);
 				entity->CalculateMidpoint();
+				entity->tileID = 1;
 				entities.Insert(entity);
 				break;
 
@@ -521,8 +535,9 @@ void GameManager::LoadContent()
 				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
 				COM_strncpy(entity->type, type, 8);
 				entity->layer = layer;
-				entity->texture = LoadTexture(rEdge);
+				entity->texture = LoadTexture(imagefile);
 				entity->CalculateMidpoint();
+				entity->tileID = 2;
 				entities.Insert(entity);
 				break;
 
@@ -645,7 +660,11 @@ void GameManager::Run()
 
 	SDL_StartTextInput();
 	
-	//ShowWindow( GetConsoleWindow(), SW_HIDE );
+	console.isConsoleActive = false;
+	console.showDebug = SHOW_DEBUG_NONE;
+	console.layerFlags = DEBUG_LAYERS_PLAYER;
+
+	*console.input = 0;
 
 	//Game loop
 	while(isRunning)
@@ -679,7 +698,7 @@ void GameManager::Run()
 //AABB Collision detection.
 bool GameManager::Collision(Entity* A, Entity* B)
 {
-	if((A->pos.x + 32 < B->pos.x + B->dims.x &&
+	if((A->pos.x + 10 < B->pos.x + B->dims.x &&
 		A->pos.x + A->dims.x - 32 > B->pos.x &&
 		A->pos.y < B->pos.y + B->center.y &&
 		A->dims.y + A->pos.y > B->pos.y))
@@ -720,7 +739,24 @@ void GameManager::Update()
 	
 #if _DEBUG
 	//Show Debug Toggle (DEBUG ONLY)
-	
+	if(console.showDebug != SHOW_DEBUG_NONE && console.showDebug ^ SHOW_DEBUG_CMD)
+	{
+		if(input.mouse.leftButton.isDown)
+		{
+			player->pos.x = input.mouse.pos.x - player->center.x + 16;
+			player->pos.y = input.mouse.pos.y;
+		}
+	}
+
+	if(console.showDebug & SHOW_DEBUG_CMD)
+	{
+		ShowWindow( GetConsoleWindow(), SW_SHOW );
+	}
+	else
+	{
+		ShowWindow( GetConsoleWindow(), SW_HIDE );
+	}
+
 #endif
 
 	player->isCrouching = input.actionDown.isDown;
@@ -856,11 +892,42 @@ void GameManager::Render()
 		RenderObject obj = q.top();
 		q.pop();
 		
-		if(ShowDebug & SHOW_DEBUG_LAYERS)
+		if(console.showDebug & SHOW_DEBUG_LAYERS)
 		{
-			if(obj.obj->layer == player->layer)
+			if(console.layerFlags & DEBUG_LAYERS_ONE)
 			{
-				obj.obj->Draw(renderer);
+				if(obj.obj->layer == 1)
+				{
+					obj.obj->Draw(renderer);
+				}
+			}
+			else if(console.layerFlags & DEBUG_LAYERS_TWO)
+			{
+				if(obj.obj->layer == 2)
+				{
+					obj.obj->Draw(renderer);
+				}
+			}
+			else if(console.layerFlags & DEBUG_LAYERS_THREE)
+			{
+				if(obj.obj->layer == 3)
+				{
+					obj.obj->Draw(renderer);
+				}
+			}
+			else if(console.layerFlags & DEBUG_LAYERS_FOUR)
+			{
+				if(obj.obj->layer == 4)
+				{
+					obj.obj->Draw(renderer);
+				}
+			}
+			else
+			{
+				if(obj.obj->layer == player->layer)
+				{
+					obj.obj->Draw(renderer);
+				}
 			}
 		}
 		else
@@ -869,14 +936,24 @@ void GameManager::Render()
 		}
 	}
 
-	if(ShowDebug & SHOW_DEBUG_GRID)
+	if(console.showDebug & SHOW_DEBUG_GRID)
 	{
-		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-
 		for(int y = 0; y < 6; y++)
 		{
 			for(int x = 0; x < 8; x++)
 			{
+				uint32 tileX = ((int32)input.mouse.pos.x / 128);
+				uint32 tileY = ((int32)input.mouse.pos.y / 128);
+
+				if(tileX == x && tileY == y)
+				{
+					SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+				}
+				else
+				{
+					SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+				}
+
 				SDL_Rect rect;
 				rect.x = x * 128;
 				rect.y = y * 128;
@@ -888,7 +965,7 @@ void GameManager::Render()
 		}
 	}
 	
-	if(ShowDebug & SHOW_DEBUG_COLISION)
+	if(console.showDebug & SHOW_DEBUG_COLISION)
 	{
 		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
 		for(int i = 0; i < entities.GetCount(); i++)
@@ -906,7 +983,7 @@ void GameManager::Render()
 		}
 	}
 
-	if(isConsoleActive)
+	if(console.isConsoleActive)
 	{
 		SDL_Color color;
 		color.a = 255;
@@ -914,11 +991,11 @@ void GameManager::Render()
 		color.g = 255;
 		color.b = 255;
 
-		uint32 size = COM_strlen(console);
+		uint32 size = COM_strlen(console.input);
 
 		if(size > 0)
 		{
-			loadFromRenderedText(renderer, console, color);
+			loadFromRenderedText(renderer, console.input, color);
 		}
 		else
 		{
