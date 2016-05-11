@@ -7,6 +7,7 @@ Player::Player(void)
 	isGrounded = false;
 	isCrouching = false;
 
+	speed = 3.0f;
 	frame = 0;
 	prevTime = 0;
 	
@@ -62,8 +63,8 @@ void Player::Draw(SDL_Renderer* renderer)
 	src.y = frame * src.h;
 	
 	SDL_Point c;
-	c.x = center.x;
-	c.y = center.y;
+	c.x = (int32)center.x;
+	c.y = (int32)center.y;
 
 	SDL_RenderCopyEx(renderer, texture, &src, &dest, 0, &c, flip);
 }

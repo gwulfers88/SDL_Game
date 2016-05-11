@@ -18,7 +18,6 @@ Entity::Entity(void)
 	ZeroMemory(&pos, sizeof(vec2));		//Init struct to 0 for all of its members.
 	ZeroMemory(&dims, sizeof(vec2));
 	ZeroMemory(&center, sizeof(vec2));
-	speed = 3.0f;
 }
 
 Entity::Entity(SDL_Texture* texture, vec2 pos, vec2 dims)
@@ -71,5 +70,9 @@ void Entity::Draw(SDL_Renderer* renderer)
 	dest.w = (int32)dims.x;
 	dest.h = (int32)dims.y;
 
-	SDL_RenderCopy(renderer, texture, 0, &dest);
+	SDL_Point c;
+	c.x = (int32)center.x;
+	c.y = (int32)center.y;
+
+	SDL_RenderCopyEx(renderer, texture, 0, &dest, 0, &c, SDL_FLIP_NONE);
 }

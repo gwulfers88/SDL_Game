@@ -35,7 +35,6 @@ protected:
 	vec2 dims;				//Dimension vector
 	vec2 center;
 	int32 layer;
-	real32 speed;
 	int8 type[8];
 };
 

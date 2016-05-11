@@ -102,3 +102,15 @@ void COM_printf(int8* fmt, ...)
 
 	COM_print(text);
 }
+
+//Converts string from A to a
+void COM_convertLower(int8* str)
+{
+	while(*str)
+	{
+		if(*str >= 'A' && *str <= 'Z')
+			*str += 32;
+		
+		str++;
+	}
+}

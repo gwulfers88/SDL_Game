@@ -1,0 +1,39 @@
+#tile_w tile_h	type images r = right, l = left, m = mid, b = block. e = empty p = player start. u = bush
+128	128	floor
+images/lEdge.png
+images/rEdge.png
+images/mid.png
+images/block.png
+images/bush_2.png
+1
+#level data layer one
+eeeeeeee
+eeeeeeee
+eeeeeeee
+peeeeeee
+reeeeelm
+beeeeeeb
+
+#layer two
+eeeeeeee
+eeeeeeee
+eeeeeeee
+eeeeeeeu
+eeeeeeee
+eeeeeeee
+
+#layer three
+eeeeeeee
+eeeeeeee
+eeeeeeee
+eeeeeeee
+eeeeeeee
+mmrelmmm
+
+#Level data layer four
+eeeeeeee
+eeeeeeee
+eeeeeeee
+eeeeeeee
+eueeeeue
+eeeeeeee

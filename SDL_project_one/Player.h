@@ -24,7 +24,8 @@ public:
 
 protected:
 	SDL_RendererFlip flip;
-
+	
+	real32 speed;
 	uint32 frame;
 	AnimInfo anim;
 

@@ -31,5 +31,6 @@ int32 COM_strlen(const int8* str);
 void COM_print(int8* str);
 //prints formatted strings
 void COM_printf(int8* fmt, ...);
-
+//Converts string from A to a
+void COM_convertLower(int8* str);
 #endif

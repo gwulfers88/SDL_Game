@@ -8,12 +8,51 @@
 	Desc: Manages the game and its subsystems.
 */
 #include "GameManager.h"
+#include <SDL/SDL_ttf.h>
 #include "mem.h"
+#include "console.h"
 
 // HOMEWORK: Make player change animations with key presses, multiple animations.
 //TODO: Fix player struct and animations.
 
 ifstream levelFile;
+TTF_Font *font = 0;
+
+bool loadFromRenderedText(SDL_Renderer* renderer, int8* text, SDL_Color color)
+{
+	SDL_Surface* surf = TTF_RenderText_Solid(font, text, color);
+
+	if(!surf)
+		return false;
+
+	SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, surf);
+	
+	SDL_FreeSurface(surf);
+
+	if(!tex)
+		return false;
+	
+	SDL_Rect rect;
+	rect.x = 5;
+	rect.y = 5;
+	
+	SDL_QueryTexture(tex, 0, 0, &rect.w, &rect.h);
+
+	SDL_Rect consoleRect;
+	consoleRect.x = 0;
+	consoleRect.y = 0;
+	consoleRect.w = SCREEN_WIDTH;
+	consoleRect.h = rect.h + 10;
+
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+	SDL_RenderFillRect(renderer, &consoleRect);
+	
+	SDL_RenderCopy(renderer, tex, 0, &rect);
+	
+	SDL_DestroyTexture(tex);
+
+	return true;
+}
 
 struct Object
 {
@@ -46,6 +85,8 @@ GameManager::~GameManager()
 //Initializes the systems used in this application
 bool GameManager::Init()
 {
+	InitCommandline();
+
 	//Init SDL
 	if( SDL_Init( SDL_INIT_EVERYTHING) < 0 )
 		return false;
@@ -53,12 +94,18 @@ bool GameManager::Init()
 	//Init IMG
 	IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG);
 
+	if(TTF_Init() == -1)
+		return false;
+
 	window = (Window*)MemAllocName(sizeof(Window), "window");	//Allocate our window into our memory space.
 
 	// Init window
 	if(!(*window).Init_Window("WulfEngine- SDL",
 		SCREEN_WIDTH, SCREEN_HEIGHT,
 		SDL_WINDOW_SHOWN))
+		return false;
+
+	if(!(font = TTF_OpenFont("lazy.ttf", 24)))
 		return false;
 
 	//Init Renderer
@@ -70,6 +117,15 @@ bool GameManager::Init()
 	return true;
 }
 
+int8 console[256] = "";
+bool isConsoleActive = false;
+//TODO: Where to put this?
+#define SHOW_DEBUG_NONE		0x00000000
+#define SHOW_DEBUG_GRID		0x00000001
+#define SHOW_DEBUG_COLISION 0x00000010
+#define SHOW_DEBUG_LAYERS	0x00000100
+uint32 ShowDebug = SHOW_DEBUG_NONE;
+
 //Process events from Window and SDL. (Keyboard, Gamepad, joystick, and mouse inputs).
 void GameManager::SDLProcEvent(SDL_Event& evnt)
 {
@@ -80,68 +136,163 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 		
 		break;
 
+	case SDL_TEXTINPUT:
+		if(isConsoleActive)
+		{
+			COM_strcat(console, evnt.text.text);
+		}
+		break;
+
 	case SDL_KEYDOWN:
-		if(evnt.key.keysym.sym == SDLK_ESCAPE)
-			input.back.isDown = true;
+		if(evnt.key.keysym.sym == SDLK_BACKSPACE)
+		{
+			if(isConsoleActive)
+			{
+				uint32 size = COM_strlen(console);
+				if(size > 0)
+				{
+					console[size - 1] = 0;
+				}
+			}
+		}
 
-		if(evnt.key.keysym.sym == SDLK_SPACE)
-			input.start.isDown = true;
+		if(evnt.key.keysym.sym == SDLK_SLASH)
+			isConsoleActive = true;
 
-		if(evnt.key.keysym.sym == SDLK_q)
-			input.leftBumper.isDown = true;
+		//TODO: Clean console command parser a bit.
+		if(evnt.key.keysym.sym == SDLK_RETURN && isConsoleActive)
+		{
+			isConsoleActive = false;
+			COM_strcat(console, "", '\0');
+			COM_convertLower(console);
+			commandParser(console);
+			ZeroMemory(console, sizeof(console));
 
-		if(evnt.key.keysym.sym == SDLK_e)
-			input.rightBumper.isDown = true;
+			//TODO: Change check function to separately check commands and multiple parameters
+			if(checkCommand("/show_debug"))
+			{
+				if(checkParam("all", 1))
+				{
+					ShowDebug ^= SHOW_DEBUG_GRID ^ SHOW_DEBUG_COLISION ^ SHOW_DEBUG_LAYERS;
+				}
+				else if(checkParam("grid", 1))
+				{
+					ShowDebug ^= SHOW_DEBUG_GRID;
+				}
+				else if(checkParam("col", 1))
+				{
+					ShowDebug ^= SHOW_DEBUG_COLISION;
+				}
+				else if(checkParam("layers", 1))
+				{
+					ShowDebug ^= SHOW_DEBUG_LAYERS;
+				}
+			}
+			else if(checkCommand("/exit"))
+			{
+				if(MessageBox(0, "Are you sure you would like to exit?", "WARNING", MB_OKCANCEL) == IDOK)
+					Exit();
+			}
+			else if(checkCommand("/help"))
+			{
+				system("cls");
+				ShowWindow( GetConsoleWindow(), SW_SHOW );
+				COM_print("Commands: /[command] [parameter]\n");
+				COM_print("show_debug\t(grid, layers, col)\tShows visual debug info.\n");
+				COM_print("mem_check\t(low, high)\t\tChecks low memory integrity.\n");
+				COM_print("exit\t\t\texit program.\n");
+				COM_print("\nPress Enter to Continue...\n");
+				getchar();
+				ShowWindow( GetConsoleWindow(), SW_HIDE );
+			}
+			else if(checkCommand("/mem_check"))
+			{
+				if(checkParam("low", 1))
+				{
+					system("cls");
+					ShowWindow( GetConsoleWindow(), SW_SHOW );
+					MemCheck();
+					COM_print("\nPress Enter to Continue...\n");
+					getchar();
+					ShowWindow( GetConsoleWindow(), SW_HIDE );
+				}
+				else if(checkParam("high", 1))
+				{
+					MessageBox(0, "This has not yet been implemnted.", "ATTENTION!", MB_OK);
+				}
+			}
+		}
+		else if(evnt.key.keysym.sym == SDLK_RETURN && !isConsoleActive)
+			isConsoleActive = true;
 
-		if(evnt.key.keysym.sym == SDLK_w || evnt.key.keysym.sym == SDLK_UP)
-			input.actionUp.isDown = true;
+		if(!isConsoleActive)
+		{
+			if(evnt.key.keysym.sym == SDLK_ESCAPE)
+				input.back.isDown = true;
 
-		if(evnt.key.keysym.sym == SDLK_a || evnt.key.keysym.sym == SDLK_LEFT)
-			input.actionLeft.isDown = true;
+			if(evnt.key.keysym.sym == SDLK_SPACE)
+				input.start.isDown = true;
+
+			if(evnt.key.keysym.sym == SDLK_q)
+				input.leftBumper.isDown = true;
+
+			if(evnt.key.keysym.sym == SDLK_e)
+				input.rightBumper.isDown = true;
+
+			if(evnt.key.keysym.sym == SDLK_w || evnt.key.keysym.sym == SDLK_UP)
+				input.actionUp.isDown = true;
+
+			if(evnt.key.keysym.sym == SDLK_a || evnt.key.keysym.sym == SDLK_LEFT)
+				input.actionLeft.isDown = true;
 			
-		if(evnt.key.keysym.sym == SDLK_s || evnt.key.keysym.sym == SDLK_DOWN)
-			input.actionDown.isDown = true;
+			if(evnt.key.keysym.sym == SDLK_s || evnt.key.keysym.sym == SDLK_DOWN)
+				input.actionDown.isDown = true;
 			
-		if(evnt.key.keysym.sym == SDLK_d || evnt.key.keysym.sym == SDLK_RIGHT)
-			input.actionRight.isDown = true;
+			if(evnt.key.keysym.sym == SDLK_d || evnt.key.keysym.sym == SDLK_RIGHT)
+				input.actionRight.isDown = true;
 
-		if(evnt.key.keysym.sym == SDLK_1)
-			input.numOne.isDown = true;
+			if(evnt.key.keysym.sym == SDLK_1)
+				input.numOne.isDown = true;
 
-		if(evnt.key.keysym.sym == SDLK_2)
-			input.numTwo.isDown = true;
+			if(evnt.key.keysym.sym == SDLK_2)
+				input.numTwo.isDown = true;
+		}
 		break;
 
 	case SDL_KEYUP:
-		if(evnt.key.keysym.sym == SDLK_ESCAPE)
-			input.back.isDown = false;
+
+		if(!isConsoleActive)
+		{
+			if(evnt.key.keysym.sym == SDLK_ESCAPE)
+				input.back.isDown = false;
 			
-		if(evnt.key.keysym.sym == SDLK_SPACE)
-			input.start.isDown = false;
+			if(evnt.key.keysym.sym == SDLK_SPACE)
+				input.start.isDown = false;
 
-		if(evnt.key.keysym.sym == SDLK_q)
-			input.leftBumper.isDown = false;
+			if(evnt.key.keysym.sym == SDLK_q)
+				input.leftBumper.isDown = false;
 
-		if(evnt.key.keysym.sym == SDLK_e)
-			input.rightBumper.isDown = false;
+			if(evnt.key.keysym.sym == SDLK_e)
+				input.rightBumper.isDown = false;
 
-		if(evnt.key.keysym.sym == SDLK_w || evnt.key.keysym.sym == SDLK_UP)
-			input.actionUp.isDown = false;
+			if(evnt.key.keysym.sym == SDLK_w || evnt.key.keysym.sym == SDLK_UP)
+				input.actionUp.isDown = false;
 
-		if(evnt.key.keysym.sym == SDLK_a || evnt.key.keysym.sym == SDLK_LEFT)
-			input.actionLeft.isDown = false;
+			if(evnt.key.keysym.sym == SDLK_a || evnt.key.keysym.sym == SDLK_LEFT)
+				input.actionLeft.isDown = false;
 			
-		if(evnt.key.keysym.sym == SDLK_s || evnt.key.keysym.sym == SDLK_DOWN)
-			input.actionDown.isDown = false;
+			if(evnt.key.keysym.sym == SDLK_s || evnt.key.keysym.sym == SDLK_DOWN)
+				input.actionDown.isDown = false;
 			
-		if(evnt.key.keysym.sym == SDLK_d || evnt.key.keysym.sym == SDLK_RIGHT)
-			input.actionRight.isDown = false;
+			if(evnt.key.keysym.sym == SDLK_d || evnt.key.keysym.sym == SDLK_RIGHT)
+				input.actionRight.isDown = false;
 
-		if(evnt.key.keysym.sym == SDLK_1)
-			input.numOne.isDown = false;
+			if(evnt.key.keysym.sym == SDLK_1)
+				input.numOne.isDown = false;
 
-		if(evnt.key.keysym.sym == SDLK_2)
-			input.numTwo.isDown = false;
+			if(evnt.key.keysym.sym == SDLK_2)
+				input.numTwo.isDown = false;
+		}
 		break;
 
 	case SDL_MOUSEBUTTONDOWN:
@@ -172,7 +323,17 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 		input.mouse.pos.x = (real32)evnt.motion.x;
 		input.mouse.pos.y = (real32)evnt.motion.y;
 		
-		//COM_printf("MouseD: %.02f, %.02f\n", input.mouse.pos.x, input.mouse.pos.y);
+		uint32 tileX = ((int32)input.mouse.pos.x / 128);
+		uint32 tileY = ((int32)input.mouse.pos.y / 128);
+		uint32 tileID = (tileY * 8) + tileX;
+		
+		uint32 dX = (tileID % 8);
+		uint32 dY = tileID / 8;
+
+		COM_printf("tileID: %d\n", tileID);
+		COM_printf("derriv: %d, %d\n", dX, dY);
+		COM_printf("actual: %d, %d\n", tileX, tileY);
+		COM_printf("MouseD: %.02f, %.02f\n", input.mouse.pos.x, input.mouse.pos.y);
 
 		break;
 	}
@@ -192,7 +353,7 @@ SDL_Texture* GameManager::LoadTexture(int8* filename)
 		//COM_strcmp return 0 if both strings match.
 		if(!COM_strcmp(tmp->filename, filename))
 		{
-			COM_printf("\tfound file: %s in memory.\n", filename);
+			COM_printf("\tfound file: %s in memory(ID: %d).\n", filename, tmp->id);
 			return tmp->texture;	//Return current loaded texture
 		}
 	}
@@ -212,7 +373,7 @@ SDL_Texture* GameManager::LoadTexture(int8* filename)
 			
 			// Copy the filename to the resource manager item's filename to keep track of it.
 			COM_strcpy(temp->filename, filename);
-			temp->id = RESOURCE_SENTINEL | (resourceManager.GetCount() + 1);	//ID
+			temp->id = RESOURCE_SENTINEL + (resourceManager.GetCount() + 1);	//ID
 			temp->texture = texture;	//Store texture ptr.
 
 			resourceManager.Insert(temp);	//Insert into list.
@@ -312,7 +473,7 @@ void GameManager::LoadContent()
 				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
 				COM_strncpy(entity->type, "block", 8);
 				entity->layer = layer;
-				entity->texture = LoadTexture(block);
+				entity->texture = LoadTexture(block);	//TODO: should we use and lookup Texture ID?
 				entity->CalculateMidpoint();
 				entities.Insert(entity);
 				break;
@@ -427,7 +588,7 @@ void GameManager::LoadContent()
 			new(temp) Player;	//Initialize the class constructor.
 			player = (Player*)temp;	//Isolate player
 			temp->pos = Vec2(playerPos.x * obj.dims.x, playerPos.y * obj.dims.x);
-			temp->speed = 5;
+			player->speed = 5;
 		}
 		else
 		{
@@ -482,6 +643,10 @@ void GameManager::Run()
 	COM_print("\nCONTROLS:\n\tMOVE: WASD keys or Arrow Keys.\n\tJUMP: Space bar.\n\tDrop from platform: S + E.");
 	COM_print("\n\tDEBUG start: 2 key.\n\tDEBUG end: 1 keys.\n");
 
+	SDL_StartTextInput();
+	
+	//ShowWindow( GetConsoleWindow(), SW_HIDE );
+
 	//Game loop
 	while(isRunning)
 	{
@@ -525,9 +690,6 @@ bool GameManager::Collision(Entity* A, Entity* B)
 	return false;
 }
 
-//TODO: This can be part of the program or renderer
-bool showDebug = false;
-
 //TODO: create a world structure that holds level data
 real32 gravity = -2.f;
 
@@ -558,10 +720,7 @@ void GameManager::Update()
 	
 #if _DEBUG
 	//Show Debug Toggle (DEBUG ONLY)
-	if(input.numTwo.isDown)
-		showDebug = true;
-	else if(input.numOne.isDown)
-		showDebug = false;
+	
 #endif
 
 	player->isCrouching = input.actionDown.isDown;
@@ -697,7 +856,7 @@ void GameManager::Render()
 		RenderObject obj = q.top();
 		q.pop();
 		
-		if(showDebug)
+		if(ShowDebug & SHOW_DEBUG_LAYERS)
 		{
 			if(obj.obj->layer == player->layer)
 			{
@@ -710,9 +869,10 @@ void GameManager::Render()
 		}
 	}
 
-	if(showDebug)
+	if(ShowDebug & SHOW_DEBUG_GRID)
 	{
 		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+
 		for(int y = 0; y < 6; y++)
 		{
 			for(int x = 0; x < 8; x++)
@@ -726,7 +886,10 @@ void GameManager::Render()
 				SDL_RenderDrawRect(renderer, &rect);
 			}
 		}
-
+	}
+	
+	if(ShowDebug & SHOW_DEBUG_COLISION)
+	{
 		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
 		for(int i = 0; i < entities.GetCount(); i++)
 		{
@@ -743,21 +906,47 @@ void GameManager::Render()
 		}
 	}
 
+	if(isConsoleActive)
+	{
+		SDL_Color color;
+		color.a = 255;
+		color.r = 255;
+		color.g = 255;
+		color.b = 255;
+
+		uint32 size = COM_strlen(console);
+
+		if(size > 0)
+		{
+			loadFromRenderedText(renderer, console, color);
+		}
+		else
+		{
+			loadFromRenderedText(renderer, " ", color);
+		}
+	}
+
 	SDL_RenderPresent(renderer);	//Send to screen and draw scene
 }
 
 // Cleanup procedure (frees used memory)
 void GameManager::Cleanup()
 {
+	SDL_StopTextInput();
+
+	TTF_CloseFont(font);
+	font = 0;
+
 	//free renderer
 	if(renderer)
 	{
 		SDL_DestroyRenderer(renderer);
 	}
-
+	
 	//Frees the entire memory block
 	FreeMemBlock();
 
+	TTF_Quit();
 	IMG_Quit();	//Stop using IMG
 	SDL_Quit();	//Stop using SDL
 }
