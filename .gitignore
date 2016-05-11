@@ -27,12 +27,12 @@ bld/
 #wwwroot/
 
 #Dependencies and Image files config files (txt)
-[Dd]eps/
-[Ii]mages/
-*.png
-*.jpg
-*.bmp
-*.txt
+#[Dd]eps/
+#[Ii]mages/
+#*.png
+#*.jpg
+#*.bmp
+#*.txt
 
 # MSTest test Results
 [Tt]est[Rr]esult*/
