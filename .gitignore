@@ -33,10 +33,14 @@ bld/
 #*.jpg
 #*.bmp
 #*.txt
-!deps/lib/Debug/x86/
-!deps/lib/Debug/x64/
-!deps/lib/Release/x86/
-!deps/lib/Release/x64/
+!deps/lib/Debug/x86/*.dll
+!deps/lib/Debug/x86/*.lib
+!deps/lib/Debug/x64/*.dll
+!deps/lib/Debug/x64/*.lib
+!deps/lib/Release/x86/*.dll
+!deps/lib/Release/x86/*.lib
+!deps/lib/Release/x64/*.dll
+!deps/lib/Release/x64/*.lib
 
 # MSTest test Results
 [Tt]est[Rr]esult*/
