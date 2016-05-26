@@ -16,43 +16,13 @@
 #include "Window.h"
 #include "SList.h"
 #include "Player.h"
+#include "Enemy.h"
+#include "Input.h"
+#include "GUI.h"
 #include <queue>
 
-#define MAX_ENTITIES 4
-
-//Button for controller.
-struct Button
-{
-	bool isDown;
-};
-
-//Mouse struct
-struct MouseInput
-{
-	Button leftButton;
-	Button rightButton;
-	Button middleButton;
-	vec2 pos;
-};
-
-// Controller for input processing.
-struct Controller
-{
-	MouseInput mouse;
-
-	Button numOne;
-	Button numTwo;
-
-	Button start;
-	Button back;
-	Button rightBumper;
-	Button leftBumper;
-
-	Button actionUp;
-	Button actionDown;
-	Button actionRight;
-	Button actionLeft;
-};
+using namespace Input;
+using namespace GUI;
 
 #define RESOURCE_SENTINEL 0x8b05
 // Basic structure that manages the resources added to this game.
@@ -60,7 +30,7 @@ struct Controller
 // it between entities without loading a new file of the same one if one exists already.
 struct ResourceManager
 {
-	int8 filename[20];		//Do we really need 20 bytes for each filename?
+	int8 filename[30];		//Do we really need 30 bytes for each filename?
 	uint32 id;				//unique ID for the current texture in memory.
 	SDL_Texture* texture;	//Texture pointer in memory.
 };
@@ -69,26 +39,25 @@ struct ResourceManager
 class GameManager
 {
 public :
-	GameManager();
-	~GameManager();
+	GameManager(void);
+	~GameManager(void);
 
-	bool Init();
+	bool Init(void);
 	
-	void Run();
-	void Update();
-	void Render();
+	void Run(void);
+	void Update(real32 dt);
+	void Render(void);
 
 private:
 	//Loads the file from disk into memory
 	SDL_Texture* LoadTexture(int8* filename);
 	vec2 DimFromTexture(SDL_Texture* texture);
 
-	bool Collision(Entity* A, Entity* B);
 	void SDLProcEvent(SDL_Event& evnt);
-	void LoadContent();
-	void Cleanup();
-	void Exit();
-
+	void LoadContent(void);
+	void Cleanup(void);
+	void Exit(void);
+	void OnGUI(void);
 	bool isRunning;
 
 	Window* window;
@@ -98,8 +67,14 @@ private:
 	SList<ResourceManager*> resourceManager;	//TODO(George): Hash table? or linked list?
 
 	Player* player;
-	
+	Enemy* enemy;
+
 	Controller input;
+
+	GUIButton showInfo;
+	GUIButton memReset;
+	GUIButton reloadContent;
+
 	Console console;
 };
 

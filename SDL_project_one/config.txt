@@ -1,3 +1,4 @@
 # name	type	layer	img			x 	y 	w 	h
-player	player	3	images/megaman.png 	64 	576 	64 	64
+player	player	3	images/megaman.png 	64 	576 	96	96
+enemy	enemy	3	images/megaman.png 	500 	376 	96	96
 bg	bg	0	images/nightBg.png	0	0	100	100

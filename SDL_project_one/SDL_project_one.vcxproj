@@ -68,21 +68,28 @@
   <ItemGroup>
     <ClCompile Include="common.cpp" />
     <ClCompile Include="console.cpp" />
+    <ClCompile Include="Enemy.cpp" />
     <ClCompile Include="GameManager.cpp" />
+    <ClCompile Include="GUI.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="mem.cpp" />
     <ClCompile Include="Entity.cpp" />
     <ClCompile Include="Player.cpp" />
+    <ClCompile Include="TileMap.cpp" />
     <ClCompile Include="Window.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h" />
     <ClInclude Include="console.h" />
+    <ClInclude Include="Enemy.h" />
     <ClInclude Include="GameManager.h" />
+    <ClInclude Include="GUI.h" />
+    <ClInclude Include="Input.h" />
     <ClInclude Include="mem.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="SList.h" />
     <ClInclude Include="Entity.h" />
+    <ClInclude Include="TileMap.h" />
     <ClInclude Include="vec2.h" />
     <ClInclude Include="Window.h" />
     <ClInclude Include="wulfdefs.h" />

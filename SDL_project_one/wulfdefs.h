@@ -14,6 +14,7 @@
 
 #include <SDL\SDL.h>
 #include <SDL\SDL_image.h>
+#include <SDL\SDL_ttf.h>
 #include <stdio.h>
 #include <iostream>
 #include <Windows.h>

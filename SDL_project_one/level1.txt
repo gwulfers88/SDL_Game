@@ -1,20 +1,20 @@
-#tile_w tile_h	type images r = right, l = left, m = mid, b = block. e = empty p = player start. u = bush
-128	128	floor
+#lvl_w 	lvl_h 	tile_w	tile_h	type	image	layer
+8	6	128	128	floor
 images/level_spritesheet.png
 1
 #level data layer one
 eeeeeeee
 eeeeeeee
-eeeeeeee
 peeeeeee
-reeeeelm
-beeeeeeb
+reeeelmm
+eeeeeeee
+eeeeeeee
 
 #layer two
 eeeeeeee
 eeeeeeee
-eeeeeeee
 eeeeeeeu
+eeeeeeee
 eeeeeeee
 eeeeeeee
 
@@ -23,13 +23,13 @@ eeeeeeee
 eeeeeeee
 eeeeeeee
 eeeeeeee
-eeeeeeee
 mmrelmmm
+bbbbbbbb
 
-#Level data layer four
-eeeeeeee
+#layer four
 eeeeeeee
 eeeeeeee
 eeeeeeee
 eueeeeue
 eeeeeeee
+ssssssss

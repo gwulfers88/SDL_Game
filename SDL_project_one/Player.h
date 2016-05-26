@@ -13,17 +13,18 @@ struct AnimInfo
 class Player : public Entity
 {
 	friend class GameManager;
+	friend class Enemy;
 public:
 	Player(void);
 	~Player(void);
-		
-	void Move(vec2 dir);
 	
-	void Update(void) override;
+	void Update(real32 dt) override;
 	void Draw(SDL_Renderer* renderer) override;
+	bool CollisionAABB(Entity* B) override;
+	void HandleCollision(Entity* B) override;
 
 protected:
-	SDL_RendererFlip	flip;
+	vec2				dir;
 	int32				facingDir;
 	uint32				prevTime;
 	uint32				frame;
@@ -33,6 +34,7 @@ protected:
 	bool				isJumping;
 	bool				isGrounded;
 	bool				isCrouching;
+	bool				isAlive;
 };
 
 #endif

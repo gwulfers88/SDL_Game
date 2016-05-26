@@ -19,6 +19,7 @@ Entity::Entity(void)
 	ZeroMemory(&pos, sizeof(vec2));		//Init struct to 0 for all of its members.
 	ZeroMemory(&dims, sizeof(vec2));
 	ZeroMemory(&center, sizeof(vec2));
+	ZeroMemory(&colRect, sizeof(colRect));
 }
 
 Entity::Entity(SDL_Texture* texture, vec2 pos, vec2 dims)
@@ -41,7 +42,7 @@ void Entity::CalculateMidpoint(void)
 	center.y = (dims.y * 0.5f);
 }
 
-void Entity::Update(void)
+void Entity::Update(real32 dt)
 {
 	if(pos.x > SCREEN_WIDTH)
 	{
@@ -92,4 +93,22 @@ void Entity::Draw(SDL_Renderer* renderer)
 	{
 		SDL_RenderCopyEx(renderer, texture, 0, &dest, 0, &c, SDL_FLIP_NONE);
 	}
+}
+
+bool Entity::CollisionAABB(Entity* B)
+{
+	if(	pos.x < B->colRect.x + B->colRect.w &&
+		pos.x + dims.x > B->colRect.x &&
+		pos.y < B->colRect.y + B->colRect.h &&
+		pos.y + dims.y > B->colRect.y)
+	{
+		return true;
+	}
+
+	return false;
+}
+
+void Entity::HandleCollision(Entity* B)
+{
+	//Entity will do nothing!!
 }

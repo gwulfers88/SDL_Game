@@ -30,5 +30,6 @@ void clearArgs();										//clear argument list
 void commandParser(int8* buffer);						//parse command input from user
 bool checkCommand(const int8* command);					//check command
 bool checkParam(const int8* parameter, uint32 index);	//check parameter
-
+void showDebug(Console *console, uint32 flags);			//sets different parameters
+void setLayers(Console *console, uint32 flags);			//sets different parameters
 #endif

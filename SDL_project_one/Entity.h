@@ -14,12 +14,18 @@
 #define ENTITY_H
 
 #include "common.h"
+#include "TileMap.h"
 #include "vec2.h"
+
+class Player;
+class Enemy;
 
 class Entity
 {
 	friend class GameManager;
 	friend struct RenderObject;
+	friend class Player;
+	friend class Enemy;
 public:
 	Entity(void);
 	Entity(SDL_Texture* texture, vec2 pos, vec2 dims);
@@ -27,16 +33,18 @@ public:
 
 	void CalculateMidpoint();
 	virtual void Draw(SDL_Renderer* renderer);
-	virtual void Update(void);
-
+	virtual void Update(real32 dt);
+	virtual bool CollisionAABB(Entity* B);
+	virtual void HandleCollision(Entity* B);
 protected:
-	SDL_Texture* texture;	//Each sprite Object will have its own texture.
-	vec2 pos;				//Position vector
-	vec2 dims;				//Dimension vector
-	vec2 center;
-	int32 tileID;
-	int32 layer;
-	int8 type[8];
+	SDL_Texture*	texture;	//Each sprite Object will have its own texture.
+	SDL_Rect		colRect;	//
+	vec2			pos;		//Position vector
+	vec2			dims;		//Dimension vector
+	vec2			center;		//
+	int32			tileID;		//
+	int32			layer;		//
+	int8			type[8];	//
 };
 
 #endif

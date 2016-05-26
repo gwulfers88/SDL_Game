@@ -8,32 +8,41 @@
 	Desc: Manages the game and its subsystems.
 */
 #include "GameManager.h"
-#include <SDL/SDL_ttf.h>
+#include "TileMap.h"
 #include "mem.h"
 
+#define PI 3.14159
+
 //TODO: create file read and open functions
-ifstream levelFile;
 TTF_Font *font = 0;
 
-bool loadFromRenderedText(SDL_Renderer* renderer, int8* text, SDL_Color color)
+SDL_Texture* StringToTexture(SDL_Renderer* renderer, int8* text, SDL_Color color)
 {
 	SDL_Surface* surf = TTF_RenderText_Solid(font, text, color);
 
 	if(!surf)
-		return false;
+		return 0;
 
 	SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, surf);
 	
 	SDL_FreeSurface(surf);
 
 	if(!tex)
-		return false;
+		return 0;
 	
+	return tex;
+}
+
+void DrawConsole(SDL_Renderer* renderer, SDL_Texture* text)
+{
 	SDL_Rect rect;
 	rect.x = 5;
 	rect.y = 5;
 	
-	SDL_QueryTexture(tex, 0, 0, &rect.w, &rect.h);
+	if(!text)
+		return;
+
+	SDL_QueryTexture(text, 0, 0, &rect.w, &rect.h);
 
 	SDL_Rect consoleRect;
 	consoleRect.x = 0;
@@ -44,11 +53,9 @@ bool loadFromRenderedText(SDL_Renderer* renderer, int8* text, SDL_Color color)
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderFillRect(renderer, &consoleRect);
 	
-	SDL_RenderCopy(renderer, tex, 0, &rect);
+	SDL_RenderCopy(renderer, text, 0, &rect);
 	
-	SDL_DestroyTexture(tex);
-
-	return true;
+	SDL_DestroyTexture(text);
 }
 
 struct Object
@@ -68,6 +75,7 @@ GameManager::GameManager()
 	
 	window = 0;
 	player = 0;
+	enemy = 0;
 	renderer = 0;
 
 	ZeroMemory(&input, sizeof(Controller));
@@ -102,7 +110,7 @@ bool GameManager::Init()
 		SDL_WINDOW_SHOWN))
 		return false;
 
-	if(!(font = TTF_OpenFont("lazy.ttf", 24)))
+	if(!(font = TTF_OpenFont("alphaslab.ttf", 18)))
 		return false;
 
 	//Init Renderer
@@ -111,7 +119,80 @@ bool GameManager::Init()
 	if (renderer == 0)
 		return false;
 
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+
 	return true;
+}
+
+typedef struct State
+{
+	int TotalSize;
+	void* GameMemBlock;
+
+	HANDLE recordHandle;
+	int inputRecordIndex;
+	
+	HANDLE playHandle;
+	int inputPlayIndex;
+};
+
+State state;
+
+void BeginRecordingInput(State *state, int inputRecordingIndex)
+{
+	state->inputRecordIndex = inputRecordingIndex;
+	int8 *filename = "recording.gw";
+	state->recordHandle = CreateFileA(filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+
+	DWORD bytesToWrite = (DWORD)state->TotalSize;
+	assert(state->TotalSize == bytesToWrite);
+	DWORD bytesWritten = 0;
+	WriteFile(state->recordHandle, state->GameMemBlock, bytesToWrite, &bytesWritten, 0);
+}
+
+void EndRecordingInput(State* state)
+{
+	CloseHandle(state->recordHandle);
+	state->inputRecordIndex = 0;
+}
+
+
+void BeginInputPlayback(State *state, int inputPlaybackIndex)
+{
+	state->inputPlayIndex = inputPlaybackIndex;
+	int8 *filename = "recording.gw";
+	state->playHandle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+
+	DWORD bytesToRead = (DWORD)state->TotalSize;
+	assert(state->TotalSize == bytesToRead);
+	DWORD bytesWritten = 0;
+	ReadFile(state->playHandle, state->GameMemBlock, bytesToRead, &bytesWritten, 0);
+}
+
+void EndInputPlayback(State* state)
+{
+	CloseHandle(state->playHandle);
+	state->inputPlayIndex = 0;
+}
+
+void RecordInput(State *state, Controller* input)
+{
+	DWORD bytesWritten = 0;
+	WriteFile(state->recordHandle, input, sizeof(*input), &bytesWritten, 0);
+}
+
+void PlaybackInput(State *state, Controller* input)
+{
+	DWORD bytesRead = 0;
+	if(ReadFile(state->playHandle, input, sizeof(*input), &bytesRead, 0))
+	{
+		if(bytesRead == 0)
+		{
+			int playingIndex = state->inputPlayIndex;
+			EndInputPlayback(state);
+			BeginInputPlayback(state, playingIndex);
+		}
+	}
 }
 
 //Process events from Window and SDL. (Keyboard, Gamepad, joystick, and mouse inputs).
@@ -147,6 +228,40 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 		if(evnt.key.keysym.sym == SDLK_SLASH)
 			console.isConsoleActive = true;
 		
+		if(console.isConsoleActive)
+		{
+			//CUT
+			if(evnt.key.keysym.mod & KMOD_LCTRL && evnt.key.keysym.sym == SDLK_x)
+			{
+				uint32 size = COM_strlen(console.input);
+
+				if(size > 0)
+				{
+					if(!SDL_SetClipboardText(console.input))
+					{
+						//success
+						ZeroMemory(console.input, sizeof(console.input));
+					}
+				}
+			}//COPY
+			else if(evnt.key.keysym.mod & KMOD_LCTRL && evnt.key.keysym.sym == SDLK_c)
+			{
+				uint32 size = COM_strlen(console.input);
+
+				if(size > 0)
+				{
+					if(!SDL_SetClipboardText(console.input))
+					{
+
+					}
+				}
+			}//PASTE
+			else if(evnt.key.keysym.mod & KMOD_LCTRL && evnt.key.keysym.sym == SDLK_v)
+			{
+				COM_strcat(console.input, SDL_GetClipboardText());
+			}
+		}
+		
 		if(evnt.key.keysym.sym == SDLK_RETURN && console.isConsoleActive)
 		{
 			console.isConsoleActive = false;
@@ -159,15 +274,15 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 			{
 				if(checkParam("all", 1))
 				{
-					console.showDebug ^= SHOW_DEBUG_GRID ^ SHOW_DEBUG_COLISION ^ SHOW_DEBUG_LAYERS;
+					showDebug(&console, SHOW_DEBUG_GRID ^ SHOW_DEBUG_COLISION ^ SHOW_DEBUG_LAYERS);
 				}
 				else if(checkParam("grid", 1))
 				{
-					console.showDebug ^= SHOW_DEBUG_GRID;
+					showDebug(&console, SHOW_DEBUG_GRID);
 				}
 				else if(checkParam("col", 1))
 				{
-					console.showDebug ^= SHOW_DEBUG_COLISION;
+					showDebug(&console, SHOW_DEBUG_COLISION);
 				}
 				else if(checkParam("layers", 1))
 				{
@@ -175,33 +290,33 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 
 					if(checkParam("\0", 2) || checkParam("", 2))
 					{
-						console.showDebug ^= SHOW_DEBUG_LAYERS;
-						console.layerFlags ^= DEBUG_LAYERS_PLAYER;
+						showDebug(&console, SHOW_DEBUG_LAYERS);
+						setLayers(&console, DEBUG_LAYERS_PLAYER);
 					}
 					else if(checkParam("1", 2))
 					{
-						console.layerFlags ^= DEBUG_LAYERS_ONE;
+						setLayers(&console, DEBUG_LAYERS_ONE);
 					}
 					else if(checkParam("2", 2))
 					{
-						console.layerFlags ^= DEBUG_LAYERS_TWO;
+						setLayers(&console, DEBUG_LAYERS_TWO);
 					}
 					else if(checkParam("3", 2))
 					{
-						console.layerFlags ^= DEBUG_LAYERS_THREE;
+						setLayers(&console, DEBUG_LAYERS_THREE);
 					}
 					else if(checkParam("4", 2))
 					{
-						console.layerFlags ^= DEBUG_LAYERS_FOUR;
+						setLayers(&console, DEBUG_LAYERS_FOUR);
 					}
 					else
 					{
-						console.showDebug ^= SHOW_DEBUG_LAYERS;
+						showDebug(&console, SHOW_DEBUG_LAYERS);
 					}
 				}
 				else if(checkParam("cmd", 1))
 				{
-					console.showDebug ^= SHOW_DEBUG_CMD;
+					showDebug(&console, SHOW_DEBUG_CMD);
 				}
 			}
 			else if(checkCommand("/exit"))
@@ -225,16 +340,17 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 			{
 				if(checkParam("low", 1))
 				{
-					system("cls");
-					ShowWindow( GetConsoleWindow(), SW_SHOW );
 					MemCheck();
-					COM_print("\nPress Enter to Continue...\n");
-					getchar();
-					ShowWindow( GetConsoleWindow(), SW_HIDE );
 				}
 				else if(checkParam("high", 1))
 				{
-					MessageBox(0, "This has not yet been implemnted.", "ATTENTION!", MB_OK);
+					MemCheckHigh();
+				}
+				else if(checkParam("\0", 1))
+				{
+					MemInfo();
+					MemCheck();
+					MemCheckHigh();
 				}
 			}
 		}
@@ -243,34 +359,58 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 
 		if(!console.isConsoleActive)
 		{
-			if(evnt.key.keysym.sym == SDLK_ESCAPE)
+			if(evnt.key.keysym.sym == SDLK_ESCAPE && !evnt.key.repeat)
 				input.back.isDown = true;
 
-			if(evnt.key.keysym.sym == SDLK_SPACE)
+			if(evnt.key.keysym.sym == SDLK_SPACE && !evnt.key.repeat)
 				input.start.isDown = true;
 
-			if(evnt.key.keysym.sym == SDLK_q)
+			if(evnt.key.keysym.sym == SDLK_q && !evnt.key.repeat)
 				input.leftBumper.isDown = true;
 
-			if(evnt.key.keysym.sym == SDLK_e)
+			if(evnt.key.keysym.sym == SDLK_e && !evnt.key.repeat)
 				input.rightBumper.isDown = true;
 
-			if(evnt.key.keysym.sym == SDLK_w || evnt.key.keysym.sym == SDLK_UP)
+			if(evnt.key.keysym.sym == SDLK_w || evnt.key.keysym.sym == SDLK_UP && !evnt.key.repeat)
 				input.actionUp.isDown = true;
 
-			if(evnt.key.keysym.sym == SDLK_a || evnt.key.keysym.sym == SDLK_LEFT)
+			if(evnt.key.keysym.sym == SDLK_a || evnt.key.keysym.sym == SDLK_LEFT && !evnt.key.repeat)
 				input.actionLeft.isDown = true;
 			
-			if(evnt.key.keysym.sym == SDLK_s || evnt.key.keysym.sym == SDLK_DOWN)
+			if(evnt.key.keysym.sym == SDLK_s || evnt.key.keysym.sym == SDLK_DOWN && !evnt.key.repeat)
 				input.actionDown.isDown = true;
 			
-			if(evnt.key.keysym.sym == SDLK_d || evnt.key.keysym.sym == SDLK_RIGHT)
+			if(evnt.key.keysym.sym == SDLK_d || evnt.key.keysym.sym == SDLK_RIGHT && !evnt.key.repeat)
 				input.actionRight.isDown = true;
 
-			if(evnt.key.keysym.sym == SDLK_1)
+			//Record and play game state
+			if(evnt.key.keysym.sym == SDLK_l)
+			{
+				if(state.inputRecordIndex == 0)
+				{
+					BeginRecordingInput(&state, 1);
+				}
+				else
+				{
+					EndRecordingInput(&state);
+					BeginInputPlayback(&state, 1);
+				}
+			}
+
+			//stop playing game state
+			if(evnt.key.keysym.sym == SDLK_k)
+			{
+				if(state.inputPlayIndex)
+				{
+					EndInputPlayback(&state);
+					ZeroMemory(&input, sizeof(input));
+				}
+			}
+
+			if(evnt.key.keysym.sym == SDLK_1 && !evnt.key.repeat)
 				input.numOne.isDown = true;
 
-			if(evnt.key.keysym.sym == SDLK_2)
+			if(evnt.key.keysym.sym == SDLK_2 && !evnt.key.repeat)
 				input.numTwo.isDown = true;
 		}
 		break;
@@ -312,13 +452,13 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 		break;
 
 	case SDL_MOUSEBUTTONDOWN:
-		if(evnt.button.button == SDL_BUTTON_RIGHT)
+		if(evnt.button.button == SDL_BUTTON_RIGHT && evnt.button.clicks == 1)
 			input.mouse.rightButton.isDown = true;
 		
-		if(evnt.button.button == SDL_BUTTON_LEFT)
+		if(evnt.button.button == SDL_BUTTON_LEFT && evnt.button.clicks == 1)
 			input.mouse.leftButton.isDown = true;
 
-		if(evnt.button.button == SDL_BUTTON_MIDDLE)
+		if(evnt.button.button == SDL_BUTTON_MIDDLE && evnt.button.clicks == 1)
 			input.mouse.middleButton.isDown = true;
 
 		break;
@@ -338,16 +478,6 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 	case SDL_MOUSEMOTION:
 		input.mouse.pos.x = (real32)evnt.motion.x;
 		input.mouse.pos.y = (real32)evnt.motion.y;
-		
-		//uint32 tileID = (tileY * 8) + tileX;
-		
-		//uint32 dX = (tileID % 8);
-		//uint32 dY = tileID / 8;
-
-		//COM_printf("tileID: %d\n", tileID);
-		//COM_printf("derriv: %d, %d\n", dX, dY);
-		//COM_printf("actual: %d, %d\n", tileX, tileY);
-		//COM_printf("MouseD: %.02f, %.02f\n", input.mouse.pos.x, input.mouse.pos.y);
 
 		break;
 	}
@@ -373,7 +503,7 @@ SDL_Texture* GameManager::LoadTexture(int8* filename)
 	}
 	
 	COM_printf("Loading file: %s into memory.\n", filename);
-
+	
 	// Load a new texture into memory
 	if(SDL_Surface* surf = IMG_Load(filename))
 	{
@@ -419,10 +549,17 @@ vec2 GameManager::DimFromTexture(SDL_Texture* texture)
 	return dims;
 }
 
+TileMap tileMap;
+
 //Loads content that will be used for this game
 void GameManager::LoadContent()
 {
 	//LOAD LEVEL ONE INFO
+	COM_print("\nLOAD LEVEL FILE START\n");
+
+	ZeroMemory(&tileMap, sizeof(tileMap));
+
+	ifstream levelFile;
 	levelFile.open("level1.txt");
 
 	if(levelFile.fail())
@@ -430,30 +567,26 @@ void GameManager::LoadContent()
 
 	char type[8] = {0};
 	char imagefile[30] = {0};
-
-	int layer = 0;
-
-	vec2 playerPos = {0};
-
-	int tileW = 0;
-	int tileH = 0;
-
 	char data[256] = {0};
 
 	int y = 0;
+	int layer = 0;
+	
+	vec2 playerPos = {0};
 
 	//Read jump header info
 	levelFile.getline(data, sizeof(data));
-	levelFile >> tileW >> tileH >> type;
+	levelFile >> tileMap.width >> tileMap.height >> tileMap.tileWidth >> tileMap.tileHeight >> type;
 	levelFile >> imagefile;
 	levelFile >> layer;
 
 	while(!levelFile.eof())
 	{
-		if( y == 6)
+		if( y == tileMap.height)
 		{
 			y = 0;
 			layer++;
+			tileMap.numLayers = layer;
 		}
 
 		ZeroMemory(data, sizeof(data));
@@ -467,7 +600,7 @@ void GameManager::LoadContent()
 
 		int x = 0;
 
-		while(x != 8)
+		while(x != tileMap.width)
 		{	
 			Entity *entity = nullptr;
 
@@ -477,10 +610,10 @@ void GameManager::LoadContent()
 				break;
 
 			case 'b':
-				entity = (Entity*)MemAllocName(sizeof(Entity), "floorB");
+				entity = (Entity*)MemAllocName(sizeof(Entity), "block");
 				new (entity) Entity;
-				entity->dims = Vec2(tileW, tileH);
-				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
 				COM_strncpy(entity->type, "block", 8);
 				entity->layer = layer;
 				entity->texture = LoadTexture(imagefile);	//TODO: should we use and lookup Texture ID?
@@ -492,25 +625,30 @@ void GameManager::LoadContent()
 			case 'u':
 				entity = (Entity*)MemAllocName(sizeof(Entity), "bush");
 				new (entity) Entity;
-				entity->dims = Vec2(tileW, tileH);
-				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
 				COM_strncpy(entity->type, "bush", 8);
 				entity->layer = layer;
 				entity->texture = LoadTexture(imagefile);
 				entity->CalculateMidpoint();
-				entity->tileID = 4;
+				
+				entity->tileID = 5;
 				entities.Insert(entity);
 				break;
 
 			case 'l':
 				entity = (Entity*)MemAllocName(sizeof(Entity), "floorL");
 				new (entity) Entity;
-				entity->dims = Vec2(tileW, tileH);
-				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
 				COM_strncpy(entity->type, type, 8);
 				entity->layer = layer;
 				entity->texture = LoadTexture(imagefile);
 				entity->CalculateMidpoint();
+				entity->colRect.x = entity->pos.x;
+				entity->colRect.y = entity->pos.y;
+				entity->colRect.w = entity->dims.x;
+				entity->colRect.h = entity->center.y;
 				entity->tileID = 0;
 				entities.Insert(entity);
 				break;
@@ -518,12 +656,16 @@ void GameManager::LoadContent()
 			case 'm':
 				entity = (Entity*)MemAllocName(sizeof(Entity), "floorM");
 				new (entity) Entity;
-				entity->dims = Vec2(tileW, tileH);
-				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
 				COM_strncpy(entity->type, type, 8);
 				entity->layer = layer;
 				entity->texture = LoadTexture(imagefile);
 				entity->CalculateMidpoint();
+				entity->colRect.x = entity->pos.x;
+				entity->colRect.y = entity->pos.y;
+				entity->colRect.w = entity->dims.x;
+				entity->colRect.h = entity->center.y;
 				entity->tileID = 1;
 				entities.Insert(entity);
 				break;
@@ -531,18 +673,39 @@ void GameManager::LoadContent()
 			case 'r':
 				entity = (Entity*)MemAllocName(sizeof(Entity), "floorR");
 				new (entity) Entity;
-				entity->dims = Vec2(tileW, tileH);
-				entity->pos = Vec2(x * entity->dims.x, y * entity->dims.y);
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
 				COM_strncpy(entity->type, type, 8);
 				entity->layer = layer;
 				entity->texture = LoadTexture(imagefile);
 				entity->CalculateMidpoint();
+				entity->colRect.x = entity->pos.x;
+				entity->colRect.y = entity->pos.y;
+				entity->colRect.w = entity->dims.x;
+				entity->colRect.h = entity->center.y;
 				entity->tileID = 2;
 				entities.Insert(entity);
 				break;
 
+			case 's':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "spike");
+				new (entity) Entity;
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
+				COM_strncpy(entity->type, "spike", 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(imagefile);
+				entity->CalculateMidpoint();
+				entity->colRect.x = entity->pos.x;
+				entity->colRect.y = entity->pos.y + entity->center.y;
+				entity->colRect.w = entity->dims.x;
+				entity->colRect.h = entity->dims.y;
+				entity->tileID = 11;
+				entities.Insert(entity);
+				break;
+
 			case 'p':
-				playerPos = Vec2(x, y);
+				playerPos = Vec2((real32)x, (real32)y);
 				break;
 			}
 
@@ -557,6 +720,8 @@ void GameManager::LoadContent()
 
 	levelFile.close();
 
+	COM_print("\nLOAD LEVEL FILE END\n");
+
 	/// CONFIG FILE LOADING
 
 	ifstream file;
@@ -567,7 +732,7 @@ void GameManager::LoadContent()
 	
 	int8 content[40];
 	
-	cout << "\nFILE CONTENT" << endl;
+	COM_print("\nLOAD CONFIG FILE START\n");
 
 	while(!file.eof())
 	{
@@ -584,7 +749,7 @@ void GameManager::LoadContent()
 		ZeroMemory(&obj, sizeof(Object));	//Zero out struct
 
 		// Fillout struct
-		COM_strcpy(obj.name, content);
+		COM_strncpy(obj.name, content, 10);
 		file >> obj.type;
 		file >> obj.layer;
 		file >> obj.filename;
@@ -603,7 +768,15 @@ void GameManager::LoadContent()
 			new(temp) Player;	//Initialize the class constructor.
 			player = (Player*)temp;	//Isolate player
 			temp->pos = Vec2(playerPos.x * obj.dims.x, playerPos.y * obj.dims.x);
-			player->speed = 5;
+		}
+		else if(!COM_strcmp(obj.type, "enemy"))
+		{
+			temp = (Enemy*)MemAllocName(sizeof(Enemy), obj.name);
+			new(temp) Enemy;	//Initialize the class constructor.
+			enemy = (Enemy*)temp;
+			enemy->target = player;
+			temp->tileID = 10;
+			temp->pos = Vec2(obj.pos.x, obj.pos.y);
 		}
 		else
 		{
@@ -620,11 +793,11 @@ void GameManager::LoadContent()
 		//if BG type
 		if(!COM_strcmp(obj.type, "bg"))
 		{
-			temp->dims = Vec2(SCREEN_WIDTH, SCREEN_HEIGHT);	//Fill screen
+			temp->dims = Vec2(tileMap.width * tileMap.tileWidth, tileMap.height * tileMap.tileHeight);	//Fill screen
 		}
 		else
 		{
-			temp->dims = Vec2(obj.dims.x, obj.dims.y);	//Otherwise just set regular size
+			temp->dims = Vec2((real32)(tileMap.tileWidth * 0.75f), (real32)(tileMap.tileHeight * 0.75f));	//Otherwise just set regular size
 		}
 
 		temp->CalculateMidpoint();
@@ -635,10 +808,13 @@ void GameManager::LoadContent()
 			continue;
 	}
 	
-	cout << "FILE CONTENT\n" << endl;
+	COM_print("\nLOAD CONFIG FILE END\n");
 
 	file.close();	//Close file
+
 }
+
+DWORD elapsed = 0;
 
 //Starts the application
 void GameManager::Run()
@@ -650,21 +826,29 @@ void GameManager::Run()
 	//Load game content
 	LoadContent();
 
+	MemInfo();
 	MemCheck();
+	MemCheckHigh();
 
 	// Run app
 	isRunning = true;
 
-	COM_print("\nCONTROLS:\n\tMOVE: WASD keys or Arrow Keys.\n\tJUMP: Space bar.\n\tDrop from platform: S + E.");
-	COM_print("\n\tDEBUG start: 2 key.\n\tDEBUG end: 1 keys.\n");
-
-	SDL_StartTextInput();
-	
 	console.isConsoleActive = false;
 	console.showDebug = SHOW_DEBUG_NONE;
 	console.layerFlags = DEBUG_LAYERS_PLAYER;
-
 	*console.input = 0;
+
+	SDL_StartTextInput();
+
+	ZeroMemory(&state, sizeof(State));
+	
+	state.GameMemBlock = GetMemBlock();
+	state.TotalSize = GetTotalSize();
+
+	int monitorHz = 60;
+	float gameUpdateHz = (monitorHz / 2.0f);
+	float targetSecondsPerFrame = 1.0f / gameUpdateHz;
+	float deltaTime = targetSecondsPerFrame;
 
 	//Game loop
 	while(isRunning)
@@ -683,168 +867,174 @@ void GameManager::Run()
 			Exit();
 		}
 
-		DWORD start = GetTickCount();	//
+		DWORD start = GetTickCount();
+		
+		if(state.inputRecordIndex)
+		{
+			RecordInput(&state, &input);
+		}
 
-		Update();	//Update logic
+		if(state.inputPlayIndex)
+		{
+			PlaybackInput(&state, &input);
+		}
+
+		//TODO: Create a delta time variable
+		Update(deltaTime);	//Update logic
 		Render();	//Render logic
 
 		DWORD end = GetTickCount();
-		DWORD elapsed = ((end - start));
-
+		elapsed = ((end - start));
+		
 		//cout << "MS: " << (float)elapsed/1000 << endl;
 	}
 }
 
-//AABB Collision detection.
-bool GameManager::Collision(Entity* A, Entity* B)
-{
-	if((A->pos.x + 10 < B->pos.x + B->dims.x &&
-		A->pos.x + A->dims.x - 32 > B->pos.x &&
-		A->pos.y < B->pos.y + B->center.y &&
-		A->dims.y + A->pos.y > B->pos.y))
-	{
-		return true;
-	}
-
-	return false;
-}
-
 //TODO: create a world structure that holds level data
-real32 gravity = -2.f;
+real32 gravity = -2.5f;
+bool isResetNeeded = false;
+bool isReloadNeeded = false;
+float jumpTime = 0;
 
 // Update logic procedures
-void GameManager::Update()
+void GameManager::Update(real32 dt)
 {
-	player->animate = false;
+	GUIUpdateButton(&showInfo, &input.mouse);
+	GUIUpdateButton(&memReset, &input.mouse);
+	GUIUpdateButton(&reloadContent, &input.mouse);
 
-	vec2 dir;
-	dir.x = 0;
-	dir.y = 0;
+	if(isResetNeeded)
+	{
+		FreeToHighMark(128);
+		FreeToLowMark(32);
+		entities.Clear();
+		resourceManager.Clear();
+		player = 0;
 
-	//player movement
-	if(input.actionLeft.isDown)
-	{
-		player->animate = true;
-		dir.x = -1;
-		//player->flip = SDL_FLIP_NONE;
-		player->facingDir = 0;
+		if(isReloadNeeded)
+		{
+			LoadContent();
+
+			isResetNeeded = false;
+			isReloadNeeded = false;
+		}
 	}
-	else if(input.actionRight.isDown)
+
+	if(entities.GetCount() > 0)
 	{
-		player->animate = true;
-		dir.x = 1;
-		//player->flip = SDL_FLIP_HORIZONTAL; we can flip our sprite if we dont have the correct animation on file.
-		player->facingDir = 1;
-	}
-	
+
 #if _DEBUG
-	//Show Debug Toggle (DEBUG ONLY)
-	if(console.showDebug != SHOW_DEBUG_NONE && console.showDebug ^ SHOW_DEBUG_CMD)
-	{
-		if(input.mouse.leftButton.isDown)
+		//Show Debug Toggle (DEBUG ONLY)
+		if(console.showDebug != SHOW_DEBUG_NONE && console.showDebug ^ SHOW_DEBUG_CMD)
 		{
-			player->pos.x = input.mouse.pos.x - player->center.x + 16;
-			player->pos.y = input.mouse.pos.y;
+			if(input.mouse.leftButton.isDown)
+			{
+				player->pos.x = input.mouse.pos.x - player->center.x + 16;
+				player->pos.y = input.mouse.pos.y - player->center.y;
+			}
 		}
-	}
 
-	if(console.showDebug & SHOW_DEBUG_CMD)
-	{
-		ShowWindow( GetConsoleWindow(), SW_SHOW );
-	}
-	else
-	{
-		ShowWindow( GetConsoleWindow(), SW_HIDE );
-	}
-
+		if(console.showDebug & SHOW_DEBUG_CMD)
+		{
+			ShowWindow( GetConsoleWindow(), SW_SHOW );
+		}
+		else
+		{
+			ShowWindow( GetConsoleWindow(), SW_HIDE );
+		}
 #endif
+		player->isCrouching = false;
 
-	player->isCrouching = input.actionDown.isDown;
-	
-	if(input.actionDown.isDown && input.rightBumper.isDown)
-	{
-		player->layer++;
-	}
+		player->dir = Vec2(0, 0);
+		enemy->dir = Vec2(0, 0);
 
-	if(input.start.isDown && !player->isJumping && player->isGrounded)
-	{
-		player->isJumping = true;
-		player->isGrounded = false;
-	}
-
-	int oldfacingDir = player->facingDir;
-
-	if(player->isCrouching)
-	{
-		if(player->facingDir == 1)
-			player->facingDir = 9;
-		else if(player->facingDir == 0)
-			player->facingDir = 8;
-	}
-	else
-		player->facingDir = oldfacingDir;
-
-	if(player->isJumping)
-	{
-		dir.y = -30;
-		player->isJumping = false;
-	}
-
-	dir.y -= gravity;
-
-	//Collision testing
-	for(int i = 0; i < entities.GetCount(); i++)
-	{
-		if(!COM_strcmp(entities.GetByIndex(i)->type, "bg") || !COM_strcmp(entities.GetByIndex(i)->type, "player"))
-			i++;
-
-		Entity* obj = entities.GetByIndex(i);
-
-		//TODO(George): Perform Object Culling for faster performance.
-		if(obj->layer == player->layer && !COM_strcmp(obj->type, "floor"))
+		//player movement
+		if(input.actionLeft.isDown)
 		{
-			if(Collision(player, obj))
+			player->dir.x = -1;
+		}
+		else if(input.actionRight.isDown)
+		{
+			player->dir.x = 1;
+		}
+		
+		player->isCrouching = input.actionDown.isDown;
+
+		//Crouch and drop
+		if(input.actionDown.isDown && input.rightBumper.isDown)
+		{
+			player->layer++;
+		}
+
+		//Jump code
+		if(input.actionUp.isDown && player->isGrounded)
+		{
+			jumpTime = 1.0f;
+		}
+	
+		if(jumpTime > 0)
+		{
+			player->isGrounded = false;
+			player->dir.y -= 2.0f * PI *sin(jumpTime);
+			jumpTime -= dt;
+		}
+
+		int oldfacingDir = player->facingDir;
+
+		if(player->isCrouching)
+		{
+			if(player->facingDir == 1)
+				player->facingDir = 9;
+			else if(player->facingDir == 0)
+				player->facingDir = 8;
+		}
+		else
+			player->facingDir = oldfacingDir;
+
+		player->dir.y -= gravity;
+		enemy->dir.y -= gravity;
+
+		//Collision testing
+		for(uint32 i = 0; i < entities.GetCount(); i++)
+		{
+			for(int j = i + 1; j < entities.GetCount(); j++)
 			{
-				if( player->pos.y > obj->pos.y + obj->center.y &&
-					player->pos.y + player->center.y > obj->pos.y + obj->dims.y)			//player Top
+				if(!COM_strcmp(entities.GetByIndex(i)->type, "bg") || !COM_strcmp(entities.GetByIndex(j)->type, "bg"))// || !COM_strcmp(entities.GetByIndex(i)->type, "player"))
 				{
-					real32 colOffsetY = (obj->pos.y + obj->dims.y) - (player->pos.y);		//Calculate how far in we went to go back by that much.
-					player->pos.y += colOffsetY - 2;										//Go back
+					continue;
 				}
-				else if(player->pos.y + player->center.y < obj->pos.y &&
-						player->pos.y + player->dims.y < obj->pos.y + obj->center.y)		//player Bottom
+
+				Entity* obj = (Entity*)entities.GetByIndex(i);
+				Entity* obj2 = (Entity*)entities.GetByIndex(j);
+
+				//TODO(George): Perform Object Culling for faster performance.
+				if(obj->layer == obj2->layer)
 				{
-					real32 colOffsetY = (player->pos.y + player->dims.y) - (obj->pos.y);	//Calculate how far in we went to go back by that much.
-					player->pos.y -= colOffsetY - 2;										//Go back
-					player->isGrounded = true;
+					if(obj->CollisionAABB(obj2))
+					{
+						obj->HandleCollision(obj2);
+					}
+					else if(obj2->CollisionAABB(obj))
+					{
+						obj2->HandleCollision(obj);
+					}
 				}
-				else if(player->pos.x + player->dims.x < obj->pos.x + obj->center.x &&
-					player->pos.x + player->center.x < obj->pos.x)							//player Right
+				else if(!COM_strcmp(obj->type, "floor") || !COM_strcmp(obj->type, "spike"))
 				{
-					real32 colOffsetX = (player->pos.x + player->dims.x) - (obj->pos.x);	//Calculate how far in we went to go back by that much.
-					player->pos.x -= colOffsetX;											//Go back
-				}
-				else if(player->pos.x > obj->pos.x + obj->center.x)							//player Left
-				{
-					real32 colOffsetX = (obj->pos.x + obj->dims.x) - (player->pos.x);		//Calculate how far in we went to go back by that much.
-					player->pos.x += colOffsetX;											//Go back
+					if(Distance(player->pos, obj->pos) <= player->dims.y + 40)
+					{
+						if(player->pos.y < obj->pos.y)
+						{
+							player->layer = obj->layer;
+						}
+					}
 				}
 			}
 		}
-		else if(!COM_strcmp(obj->type, "floor"))
-		{
-			if(Distance(player->pos, obj->pos) <= player->dims.y + 40)
-			{
-				if(player->pos.y < obj->pos.y)
-				{
-					player->layer = obj->layer;
-				}
-			}
-		}
+
+		player->Update(dt);
+		enemy->Update(dt);
 	}
-	
-	player->Move(dir);	//Move player
-	player->Update();
 }
 
 struct RenderObject
@@ -865,10 +1055,168 @@ struct RenderObject
 	}
 };
 
+bool showGuiInfo = false;
+
+void ShowInfo(void)
+{
+	showGuiInfo = !showGuiInfo;
+}
+
+void FreeContent(void)
+{
+	isResetNeeded = true;
+}
+
+void ReloadContent(void)
+{
+	if(!isResetNeeded)
+	{
+		isResetNeeded = true;
+	}
+
+	isReloadNeeded = true;
+}
+
+void GameManager::OnGUI(void)
+{
+	//TODO: create GUI elements (text, buttons, panels, windows, etc.)
+	SDL_Color color;
+	color.a = 255;
+	color.r = 255;
+	color.g = 50;
+	color.b = 50;
+
+	uint32 xOffset = SCREEN_WIDTH - 150;
+	uint32 yOffset = 10;
+
+	CreateGUIButton(&showInfo, xOffset, yOffset, StringToTexture(renderer, "show info", color), ShowInfo);
+	DrawGUIButton(renderer, &showInfo);
+
+	yOffset += showInfo.border.h + 10;
+
+	CreateGUIButton(&memReset, xOffset, yOffset, StringToTexture(renderer, "free content", color), FreeContent);
+	DrawGUIButton(renderer, &memReset);
+	
+	yOffset += memReset.border.h + 10;
+
+	CreateGUIButton(&reloadContent, xOffset, yOffset, StringToTexture(renderer, "reload content", color), ReloadContent);
+	DrawGUIButton(renderer, &reloadContent);
+
+	GUIText txtState;
+	
+	color.a = 255;
+	color.r = 255;
+	color.g = 255;
+	color.b = 255;
+
+	txtState.pos = Vec2(10, SCREEN_HEIGHT - 25);
+
+	if(state.inputRecordIndex)
+	{
+		txtState.texture = StringToTexture(renderer, "state: RECORDING...", color);
+	}
+	else if(state.inputPlayIndex)
+	{
+		txtState.texture = StringToTexture(renderer, "state: PLAYBACK...", color);
+	}
+	else if(!state.inputPlayIndex && !state.inputRecordIndex)
+	{
+		txtState.texture = StringToTexture(renderer, "state: NORMAL...", color);
+	}
+
+	DrawGUIText(renderer, &txtState);
+
+	if(showGuiInfo)
+	{
+		color.a = 255;
+		color.r = 255;
+		color.g = 50;
+		color.b = 50;
+		GUIText text;
+	
+		int8 data[256] = "Current layer: ";
+		int8 buffer[16] = {0};
+
+		vec2 tilePos = WorldPosToTilePos(input.mouse.pos, &tileMap);
+		uint32 TileID = GetTileID(tilePos, &tileMap);
+
+		if(player)
+		{
+			COM_strcat(data, itoa(player->layer, buffer, 10));
+			text.texture = StringToTexture(renderer, data, color);
+			text.pos = Vec2(10, 10);
+			DrawGUIText(renderer, &text);
+		}
+
+		ZeroMemory(data, sizeof(data));
+
+		COM_strcat(data, "Game Mem Used: ");
+		COM_strcat(data, itoa(MemGetUsedSize(), buffer, 10));
+		COM_strcat(data, " bytes");
+		text.texture = StringToTexture(renderer, data, color);
+		text.pos = Vec2(10, 30);
+		DrawGUIText(renderer, &text);
+
+		ZeroMemory(data, sizeof(data));
+
+		COM_strcat(data, "Low Mem Size: ");
+		COM_strcat(data, itoa(MemGetSizeLow(), buffer, 10));
+		COM_strcat(data, " bytes");
+		text.texture = StringToTexture(renderer, data, color);
+		text.pos = Vec2(10, 50);
+		DrawGUIText(renderer, &text);
+
+		ZeroMemory(data, sizeof(data));
+
+		COM_strcat(data, "Hi Mem Size: ");
+		COM_strcat(data, itoa(MemGetSizeHigh(), buffer, 10));
+		COM_strcat(data, " bytes");
+		text.texture = StringToTexture(renderer, data, color);
+		text.pos = Vec2(10, 70);
+		DrawGUIText(renderer, &text);
+
+		ZeroMemory(data, sizeof(data));
+
+		COM_strcat(data, "Tile Pos: ");
+		COM_strcat(data, itoa((int)tilePos.x, buffer, 10));
+		COM_strcat(data, ", ");
+		COM_strcat(data, itoa((int)tilePos.y, buffer, 10));
+		text.texture = StringToTexture(renderer, data, color);
+		text.pos = Vec2(SCREEN_WIDTH / 2, 10);
+		DrawGUIText(renderer, &text);
+
+		ZeroMemory(data, sizeof(data));
+
+		COM_strcat(data, "Tile ID: ");
+		COM_strcat(data, itoa(TileID, buffer, 10));
+		text.texture = StringToTexture(renderer, data, color);
+		text.pos = Vec2(SCREEN_WIDTH / 2, 30);
+		DrawGUIText(renderer, &text);
+
+		ZeroMemory(data, sizeof(data));
+
+		COM_strcat(data, "Mouse Pos: ");
+		COM_strcat(data, itoa(input.mouse.pos.x, buffer, 10));
+		COM_strcat(data, ", ");
+		COM_strcat(data, itoa(input.mouse.pos.y, buffer, 10));
+		text.texture = StringToTexture(renderer, data, color);
+		text.pos = Vec2(SCREEN_WIDTH / 2, 50);
+		DrawGUIText(renderer, &text);
+
+		ZeroMemory(data, sizeof(data));
+
+		COM_strcat(data, "MS: ");
+		COM_strcat(data, itoa(elapsed, buffer, 10));
+		text.texture = StringToTexture(renderer, data, color);
+		text.pos = Vec2(SCREEN_WIDTH / 2, 70);
+		DrawGUIText(renderer, &text);
+	}
+}
+
 //Render procedure
 void GameManager::Render()
 {
-	SDL_SetRenderDrawColor(renderer, 50, 100, 200, 255);
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);	//Cear the buffer
 	
 	priority_queue<RenderObject> q;
@@ -942,46 +1290,50 @@ void GameManager::Render()
 		{
 			for(int x = 0; x < 8; x++)
 			{
-				uint32 tileX = ((int32)input.mouse.pos.x / 128);
-				uint32 tileY = ((int32)input.mouse.pos.y / 128);
+				vec2 tilePos = WorldPosToTilePos(input.mouse.pos, &tileMap);
+				
+				SDL_Rect rect;
+				rect.x = x * tileMap.tileWidth;
+				rect.y = y * tileMap.tileHeight;
+				rect.w = tileMap.tileWidth;
+				rect.h = tileMap.tileHeight;
 
-				if(tileX == x && tileY == y)
+				if(player)
 				{
-					SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+					vec2 center = Vec2(player->pos.x + player->center.x, player->pos.y + player->center.y);
+					vec2 p = WorldPosToTilePos(center, &tileMap);
+									
+					if((int)p.x == x && (int)p.y == y)
+					{
+						SDL_SetRenderDrawColor(renderer, 0, 255, 0, 50);
+						SDL_RenderFillRect(renderer, &rect);
+					}
+				}
+
+				if((int)tilePos.x == x && (int)tilePos.y == y)
+				{
+					SDL_SetRenderDrawColor(renderer, 255, 0, 0, 50);
+					SDL_RenderFillRect(renderer, &rect);
 				}
 				else
 				{
 					SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+					SDL_RenderDrawRect(renderer, &rect);
 				}
-
-				SDL_Rect rect;
-				rect.x = x * 128;
-				rect.y = y * 128;
-				rect.w = 128;
-				rect.h = 128;
-
-				SDL_RenderDrawRect(renderer, &rect);
 			}
 		}
 	}
 	
 	if(console.showDebug & SHOW_DEBUG_COLISION)
 	{
-		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-		for(int i = 0; i < entities.GetCount(); i++)
+		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 100);
+		for(uint32 i = 0; i < entities.GetCount(); i++)
 		{
-			if(!COM_strcmp(entities.GetByIndex(i)->type, "floor"))
-			{
-				SDL_Rect colRect;
-				colRect.x = entities.GetByIndex(i)->pos.x;
-				colRect.y = entities.GetByIndex(i)->pos.y;
-				colRect.w = entities.GetByIndex(i)->dims.x;
-				colRect.h = entities.GetByIndex(i)->center.y;
-
-				SDL_RenderDrawRect(renderer, &colRect);
-			}
+			SDL_RenderFillRect(renderer, &entities.GetByIndex(i)->colRect);
 		}
 	}
+
+	OnGUI();
 
 	if(console.isConsoleActive)
 	{
@@ -995,11 +1347,11 @@ void GameManager::Render()
 
 		if(size > 0)
 		{
-			loadFromRenderedText(renderer, console.input, color);
+			DrawConsole(renderer, StringToTexture(renderer, console.input, color));
 		}
 		else
 		{
-			loadFromRenderedText(renderer, " ", color);
+			DrawConsole(renderer, StringToTexture(renderer, " ", color));
 		}
 	}
 
@@ -1011,8 +1363,11 @@ void GameManager::Cleanup()
 {
 	SDL_StopTextInput();
 
-	TTF_CloseFont(font);
-	font = 0;
+	if(font)
+	{
+		TTF_CloseFont(font);
+		font = 0;
+	}
 
 	//free renderer
 	if(renderer)

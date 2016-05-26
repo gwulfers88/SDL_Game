@@ -27,6 +27,16 @@ void MemoryInit(void *Buffer, int32 BufferSize)
 	Mem.MemSize = BufferSize;
 }
 
+void* GetMemBlock(void)
+{
+	return Mem.MemBase;
+}
+
+int GetTotalSize(void)
+{
+	return Mem.MemSize;
+}
+
 void * MemAlloc(uint32 RequestSize)
 {
 	return MemAllocName(RequestSize, "unknown");
@@ -42,7 +52,7 @@ void * MemAllocName( uint32 RequestSize, int8* RequestName )
 	//TODO(George): Make this system more robust.
 	uint32 TotalSize = sizeof(MemHeader) + ((RequestSize + 15)& ~15);	//16 byte boundary only!!
 	
-	COM_printf("\nAllocating memory:\n\tRequested size: %d bytes\n", RequestSize);
+	COM_printf("\nAllocating memory (LO):\n\tRequested size: %d bytes\n", RequestSize);
 	COM_printf("\tActual memory size allocated: %d bytes (16 byte aligned).\n", TotalSize);
 
 	//Make sure we dont go over the Total Size allocated.
@@ -57,7 +67,7 @@ void * MemAllocName( uint32 RequestSize, int8* RequestName )
 	//Fillout memory header file
 	header->MemorySentinel = MEMORY_SENTINAL;
 	header->MemorySize = TotalSize;
-	COM_strcpy(header->MemoryName, RequestName);
+	COM_strncpy(header->MemoryName, RequestName, 8);
 
 	COM_printf("\tTotal size used: %d bytes out of %d bytes\n", (Mem.MemOffset + Mem.MemHighOffset), Mem.MemSize);
 	COM_printf("\t%.02f percent memory used.\n", (((real32)(Mem.MemOffset + Mem.MemHighOffset) / (real32)Mem.MemSize) * 100));
@@ -83,6 +93,9 @@ void* MemHighAllocName(uint32 RequestSize, int8* RequestName)
 {
 	uint32 TotalSize = sizeof(MemHeader) + ((RequestSize + 15) & ~15);
 
+	COM_printf("\nAllocating memory (HI):\n\tRequested size: %d bytes\n", RequestSize);
+	COM_printf("\tActual memory size allocated: %d bytes (16 byte aligned).\n", TotalSize);
+
 	assert(((Mem.MemHighOffset + TotalSize) < (Mem.MemSize - Mem.MemHighOffset)));
 
 	Mem.MemHighOffset += TotalSize;
@@ -92,7 +105,10 @@ void* MemHighAllocName(uint32 RequestSize, int8* RequestName)
 
 	header->MemorySentinel = MEMORY_SENTINAL;
 	header->MemorySize = TotalSize;
-	COM_strcpy(header->MemoryName, RequestName);
+	COM_strncpy(header->MemoryName, RequestName, 8);
+	
+	COM_printf("\tTotal size used: %d bytes out of %d bytes\n", (Mem.MemOffset + Mem.MemHighOffset), Mem.MemSize);
+	COM_printf("\t%.02f percent memory used.\n", (((real32)(Mem.MemOffset + Mem.MemHighOffset) / (real32)Mem.MemSize) * 100));
 
 	return (void*)(header + 1);
 }
@@ -116,6 +132,8 @@ void FreeMemBlock(void)
 //Check integrity of our memory allocations
 void MemCheck(void)
 {
+	COM_print("\n----------------LOW MEMORY BASE----------------\n");
+
 	for( MemHeader* header = (MemHeader*)Mem.MemBase;
 		(int8*)header != (int8*)Mem.MemBase + Mem.MemOffset; )
 	{
@@ -131,4 +149,58 @@ void MemCheck(void)
 
 		header = (MemHeader*)((int8*)header + header->MemorySize);
 	}
+
+	COM_print("\n----------------LOW MEMORY END----------------\n");
+}
+
+void MemCheckHigh(void)
+{
+	COM_print("\n----------------HIGH MEMORY BASE----------------\n");
+
+	for(MemHeader* header = (MemHeader*)(((int8*)Mem.MemBase + Mem.MemSize) - Mem.MemHighOffset);
+		(int8*)header != (int8*)Mem.MemBase + Mem.MemSize; )
+	{
+		if(header->MemorySentinel != MEMORY_SENTINAL)
+			assert(0);
+
+		COM_printf("\n\tMemCheck(): SENTINAL [OK]: name: %s\n", header->MemoryName);
+
+		if(header->MemorySize < 16 || (int8*)header - Mem.MemBase + header->MemorySize > Mem.MemSize)
+			assert(0);
+
+		COM_printf("\tMemCheck(): BLOCK SIZE [OK]: size: %d\n", header->MemorySize);
+
+		header = (MemHeader*)((int8*)header + header->MemorySize);
+	}
+
+	COM_print("\n----------------HIGH MEMORY END----------------\n");
+}
+
+void MemInfo(void)
+{
+	COM_printf("\n\tTotal Size:\t%d bytes\n", Mem.MemSize);
+	COM_printf("\tLow   Size:\t%d bytes\n", Mem.MemOffset);
+	COM_printf("\tHigh  Size:\t%d bytes\n", Mem.MemHighOffset);
+	COM_printf("\tUsed:\t\t%d bytes\n", (Mem.MemOffset + Mem.MemHighOffset));
+	COM_printf("\tpercent: %.02f\n", (((real32)(Mem.MemOffset + Mem.MemHighOffset)/Mem.MemSize) * 100));
+}
+
+uint32 MemGetSize(void)
+{
+	return Mem.MemSize;
+}
+
+uint32 MemGetSizeLow(void)
+{
+	return Mem.MemOffset;
+}
+
+uint32 MemGetSizeHigh(void)
+{
+	return Mem.MemHighOffset;
+}
+
+uint32 MemGetUsedSize(void)
+{
+	return Mem.MemOffset + Mem.MemHighOffset;
 }

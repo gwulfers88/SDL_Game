@@ -33,6 +33,9 @@ void commandParser(int8* buffer)
 	{
 		while(*buffer)
 		{
+			if(argsCount >= 4)
+				break;
+
 			*args[argsCount]++ = *buffer++;
 			count++;
 
@@ -62,4 +65,14 @@ bool checkParam(const int8* parameter, uint32 index)
 		index = MAX_ARGS - 1;
 
 	return (!COM_strcmp(parameter, args[index]));
+}
+
+void showDebug(Console *console, uint32 flags)			//sets different parameters
+{
+	console->showDebug ^= flags;
+}
+
+void setLayers(Console *console, uint32 flags)			//sets different parameters
+{
+	console->layerFlags ^= flags;
 }
