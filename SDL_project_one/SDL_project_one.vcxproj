@@ -79,6 +79,7 @@
     <ClCompile Include="Window.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Animation.h" />
     <ClInclude Include="common.h" />
     <ClInclude Include="console.h" />
     <ClInclude Include="Enemy.h" />
@@ -86,6 +87,7 @@
     <ClInclude Include="GUI.h" />
     <ClInclude Include="Input.h" />
     <ClInclude Include="mem.h" />
+    <ClInclude Include="Path.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="SList.h" />
     <ClInclude Include="Entity.h" />

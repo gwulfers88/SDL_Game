@@ -19,6 +19,7 @@
 #include "Enemy.h"
 #include "Input.h"
 #include "GUI.h"
+#include "Path.h"
 #include <queue>
 
 using namespace Input;
@@ -64,10 +65,11 @@ private:
 	SDL_Renderer* renderer;
 	
 	SList<Entity*> entities;
+	SList<PathNode*> path;
 	SList<ResourceManager*> resourceManager;	//TODO(George): Hash table? or linked list?
 
 	Player* player;
-	Enemy* enemy;
+	Entity* bg[2];
 
 	Controller input;
 

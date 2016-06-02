@@ -44,22 +44,12 @@ void Entity::CalculateMidpoint(void)
 
 void Entity::Update(real32 dt)
 {
-	if(pos.x > SCREEN_WIDTH)
+	if(!COM_strcmp(type, "floor"))
 	{
-		pos.x = 0;
-	}
-	else if(pos.x + dims.x < 0 )
-	{
-		pos.x = SCREEN_WIDTH;
-	}
-
-	if(pos.y > SCREEN_HEIGHT)
-	{
-		pos.y = 0;
-	}
-	else if(pos.y < 0 )
-	{
-		pos.x = SCREEN_HEIGHT;
+		colRect.x = pos.x;
+		colRect.y = pos.y;
+		colRect.w = dims.x;
+		colRect.h = center.y;
 	}
 }
 

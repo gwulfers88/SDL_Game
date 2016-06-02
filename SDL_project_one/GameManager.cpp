@@ -16,6 +16,9 @@
 //TODO: create file read and open functions
 TTF_Font *font = 0;
 
+float worldWidth = 0;
+float worldHeight = 0;
+
 SDL_Texture* StringToTexture(SDL_Renderer* renderer, int8* text, SDL_Color color)
 {
 	SDL_Surface* surf = TTF_RenderText_Solid(font, text, color);
@@ -62,7 +65,7 @@ struct Object
 {
 	int8 name[10];			// 10
 	int8 type[10];			// 10
-	int8 filename[20];		// 20
+	int8 filename[30];		// 30
 	vec2 pos;				// 8
 	vec2 dims;				// 8
 	int32 layer;			// 4
@@ -75,10 +78,14 @@ GameManager::GameManager()
 	
 	window = 0;
 	player = 0;
-	enemy = 0;
 	renderer = 0;
 
 	ZeroMemory(&input, sizeof(Controller));
+
+	for(int i = 0; i < 2; i++)
+	{
+		bg[i] = 0;
+	}
 }
 
 // Destructor
@@ -274,7 +281,7 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 			{
 				if(checkParam("all", 1))
 				{
-					showDebug(&console, SHOW_DEBUG_GRID ^ SHOW_DEBUG_COLISION ^ SHOW_DEBUG_LAYERS);
+					showDebug(&console, SHOW_DEBUG_GRID ^ SHOW_DEBUG_COLISION ^ SHOW_DEBUG_LAYERS ^ SHOW_DEBUG_PATH);
 				}
 				else if(checkParam("grid", 1))
 				{
@@ -283,6 +290,10 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 				else if(checkParam("col", 1))
 				{
 					showDebug(&console, SHOW_DEBUG_COLISION);
+				}
+				else if(checkParam("path", 1) || checkParam("node", 1))
+				{
+					showDebug(&console, SHOW_DEBUG_PATH);
 				}
 				else if(checkParam("layers", 1))
 				{
@@ -551,6 +562,13 @@ vec2 GameManager::DimFromTexture(SDL_Texture* texture)
 
 TileMap tileMap;
 
+void CreatePathNode(SList<PathNode*>* path, vec2 pos)
+{
+	PathNode* node = (PathNode*)MemAllocName(sizeof(node), "pnode");
+	node->pos = pos;
+	path->Insert(node);
+}
+
 //Loads content that will be used for this game
 void GameManager::LoadContent()
 {
@@ -573,12 +591,18 @@ void GameManager::LoadContent()
 	int layer = 0;
 	
 	vec2 playerPos = {0};
+	uint32 enemyIndex = 0;
+#define MAX_ENEMY_COUNT 4
+	vec2 enemyPos[MAX_ENEMY_COUNT] = {0};
 
 	//Read jump header info
 	levelFile.getline(data, sizeof(data));
 	levelFile >> tileMap.width >> tileMap.height >> tileMap.tileWidth >> tileMap.tileHeight >> type;
 	levelFile >> imagefile;
 	levelFile >> layer;
+
+	worldWidth = tileMap.width * tileMap.tileWidth;
+	worldHeight = tileMap.height * tileMap.tileHeight;
 
 	while(!levelFile.eof())
 	{
@@ -651,6 +675,8 @@ void GameManager::LoadContent()
 				entity->colRect.h = entity->center.y;
 				entity->tileID = 0;
 				entities.Insert(entity);
+
+				CreatePathNode(&path, Vec2(entity->pos.x + (entity->dims.x * 0.5f), entity->pos.y - (tileMap.tileHeight * 0.5f)));
 				break;
 
 			case 'm':
@@ -668,6 +694,8 @@ void GameManager::LoadContent()
 				entity->colRect.h = entity->center.y;
 				entity->tileID = 1;
 				entities.Insert(entity);
+				
+				CreatePathNode(&path, Vec2(entity->pos.x + (entity->dims.x * 0.5f), entity->pos.y - (tileMap.tileHeight * 0.5f)));
 				break;
 
 			case 'r':
@@ -685,6 +713,8 @@ void GameManager::LoadContent()
 				entity->colRect.h = entity->center.y;
 				entity->tileID = 2;
 				entities.Insert(entity);
+
+				CreatePathNode(&path, Vec2(entity->pos.x + (entity->dims.x * 0.5f), entity->pos.y - (tileMap.tileHeight * 0.5f)));
 				break;
 
 			case 's':
@@ -707,6 +737,13 @@ void GameManager::LoadContent()
 			case 'p':
 				playerPos = Vec2((real32)x, (real32)y);
 				break;
+
+			case 'n':
+				if(enemyIndex < MAX_ENEMY_COUNT)
+				{
+					enemyPos[enemyIndex++] = Vec2((real32)x * tileMap.tileWidth, (real32)y * tileMap.tileHeight);
+				}
+				break;
 			}
 
 			x++;
@@ -720,6 +757,23 @@ void GameManager::LoadContent()
 
 	levelFile.close();
 
+	/// Caluculate connections
+	for( int i = 0; i < path.GetCount(); i++)
+	{
+		PathNode* n1 = path.GetByIndex(i);
+
+		for( int j = i + 1; j < path.GetCount(); j++)
+		{
+			PathNode* n2 = path.GetByIndex(j);
+
+			if(Distance(n1->pos, n2->pos) <= tileMap.tileWidth)
+			{
+				n1->next = n2;
+				n2->prev = n1;
+			}
+		}
+	}
+
 	COM_print("\nLOAD LEVEL FILE END\n");
 
 	/// CONFIG FILE LOADING
@@ -731,8 +785,11 @@ void GameManager::LoadContent()
 		return;
 	
 	int8 content[40];
-	
+	int bgIndex = 0;
+
 	COM_print("\nLOAD CONFIG FILE START\n");
+
+	enemyIndex = 0;
 
 	while(!file.eof())
 	{
@@ -759,7 +816,7 @@ void GameManager::LoadContent()
 		file >> obj.dims.y;
 		
 		//Allocate Sprite into memory block and name that allocation what ever the sprite's name is.
-		Entity* temp;
+		Entity* temp = 0;
 
 		//if it is player type
 		if(!COM_strcmp(obj.type, "player"))
@@ -767,16 +824,27 @@ void GameManager::LoadContent()
 			temp = (Player*)MemAllocName(sizeof(Player), obj.name);
 			new(temp) Player;	//Initialize the class constructor.
 			player = (Player*)temp;	//Isolate player
-			temp->pos = Vec2(playerPos.x * obj.dims.x, playerPos.y * obj.dims.x);
+			temp->pos = Vec2(playerPos.x * tileMap.tileWidth, playerPos.y * tileMap.tileHeight);
 		}
-		else if(!COM_strcmp(obj.type, "enemy"))
+		else if(!COM_strcmp(obj.type, "enemy") && enemyIndex < MAX_ENEMY_COUNT)
 		{
+			PathNode* target = 0;
+			for(int i = 0; i < path.GetCount(); i++)
+			{
+				if(Distance(enemyPos[enemyIndex], path.GetByIndex(i)->pos) <= tileMap.tileWidth)
+				{
+					target = path.GetByIndex(i);
+					break;
+				}
+			}
+
 			temp = (Enemy*)MemAllocName(sizeof(Enemy), obj.name);
 			new(temp) Enemy;	//Initialize the class constructor.
-			enemy = (Enemy*)temp;
-			enemy->target = player;
-			temp->tileID = 10;
-			temp->pos = Vec2(obj.pos.x, obj.pos.y);
+			Enemy* e = (Enemy*)temp;
+			e->target = target;
+			//temp->tileID = 10;
+			temp->pos = Vec2(enemyPos[enemyIndex].x, enemyPos[enemyIndex].y);
+			enemyIndex++;
 		}
 		else
 		{
@@ -793,7 +861,15 @@ void GameManager::LoadContent()
 		//if BG type
 		if(!COM_strcmp(obj.type, "bg"))
 		{
-			temp->dims = Vec2(tileMap.width * tileMap.tileWidth, tileMap.height * tileMap.tileHeight);	//Fill screen
+			bg[bgIndex] = temp;
+			temp->dims = Vec2(tileMap.width * tileMap.tileWidth/2, tileMap.height * tileMap.tileHeight);	//Fill screen
+
+			if(bgIndex)
+			{
+				bg[bgIndex]->pos = Vec2(tileMap.width * tileMap.tileWidth/2, 0);
+			}
+
+			bgIndex++;
 		}
 		else
 		{
@@ -879,7 +955,6 @@ void GameManager::Run()
 			PlaybackInput(&state, &input);
 		}
 
-		//TODO: Create a delta time variable
 		Update(deltaTime);	//Update logic
 		Render();	//Render logic
 
@@ -894,7 +969,8 @@ void GameManager::Run()
 real32 gravity = -2.5f;
 bool isResetNeeded = false;
 bool isReloadNeeded = false;
-float jumpTime = 0;
+
+vec2 safeArea = {0};
 
 // Update logic procedures
 void GameManager::Update(real32 dt)
@@ -909,6 +985,7 @@ void GameManager::Update(real32 dt)
 		FreeToLowMark(32);
 		entities.Clear();
 		resourceManager.Clear();
+		path.Clear();
 		player = 0;
 
 		if(isReloadNeeded)
@@ -922,6 +999,7 @@ void GameManager::Update(real32 dt)
 
 	if(entities.GetCount() > 0)
 	{
+		safeArea = Vec2(1 * tileMap.tileWidth, 6 * tileMap.tileWidth);
 
 #if _DEBUG
 		//Show Debug Toggle (DEBUG ONLY)
@@ -943,22 +1021,20 @@ void GameManager::Update(real32 dt)
 			ShowWindow( GetConsoleWindow(), SW_HIDE );
 		}
 #endif
-		player->isCrouching = false;
-
 		player->dir = Vec2(0, 0);
-		enemy->dir = Vec2(0, 0);
 
-		//player movement
-		if(input.actionLeft.isDown)
+		if(player->isAlive)
 		{
-			player->dir.x = -1;
+			//player movement
+			if(input.actionLeft.isDown)
+			{
+				player->dir.x = -1;
+			}
+			else if(input.actionRight.isDown)
+			{
+				player->dir.x = 1;
+			}
 		}
-		else if(input.actionRight.isDown)
-		{
-			player->dir.x = 1;
-		}
-		
-		player->isCrouching = input.actionDown.isDown;
 
 		//Crouch and drop
 		if(input.actionDown.isDown && input.rightBumper.isDown)
@@ -969,37 +1045,53 @@ void GameManager::Update(real32 dt)
 		//Jump code
 		if(input.actionUp.isDown && player->isGrounded)
 		{
-			jumpTime = 1.0f;
+			player->jumpTime = 1.0f;
 		}
 	
-		if(jumpTime > 0)
+		if(player->jumpTime > 0)
 		{
 			player->isGrounded = false;
-			player->dir.y -= 2.0f * PI *sin(jumpTime);
-			jumpTime -= dt;
+			player->dir.y -= 2.0f * PI *sin(player->jumpTime);
+			player->jumpTime -= dt;
 		}
-
-		int oldfacingDir = player->facingDir;
-
-		if(player->isCrouching)
-		{
-			if(player->facingDir == 1)
-				player->facingDir = 9;
-			else if(player->facingDir == 0)
-				player->facingDir = 8;
-		}
-		else
-			player->facingDir = oldfacingDir;
-
+		
 		player->dir.y -= gravity;
-		enemy->dir.y -= gravity;
 
-		//Collision testing
+		player->Move(dt);
+		player->Update(dt);
+
 		for(uint32 i = 0; i < entities.GetCount(); i++)
 		{
+			//HANDLE SCROLLING
+			if(player->dir.x > 0)	//PLAYER RIGHT
+			{
+				//if(player->pos.x + player->dims.x >= safeArea.y)	//<---- FIX ME!!
+				{
+					entities.GetByIndex(i)->pos.x -= player->speed * dt;
+					
+					if(i < path.GetCount())
+					{
+						path.GetByIndex(i)->pos.x -= player->speed * dt;
+					}
+				}
+			}
+			else if(player->dir.x < 0)	//PLAYER LEFT
+			{
+				//if(player->pos.x <= safeArea.x)	//<---- FIX ME!!
+				{
+					entities.GetByIndex(i)->pos.x += player->speed * dt;
+					if(i < path.GetCount())
+					{
+						path.GetByIndex(i)->pos.x += player->speed * dt;
+					}
+				}
+			}
+						
+			entities.GetByIndex(i)->Update(dt);
+						
 			for(int j = i + 1; j < entities.GetCount(); j++)
 			{
-				if(!COM_strcmp(entities.GetByIndex(i)->type, "bg") || !COM_strcmp(entities.GetByIndex(j)->type, "bg"))// || !COM_strcmp(entities.GetByIndex(i)->type, "player"))
+				if(!COM_strcmp(entities.GetByIndex(i)->type, "bg") || !COM_strcmp(entities.GetByIndex(j)->type, "bg"))
 				{
 					continue;
 				}
@@ -1010,6 +1102,7 @@ void GameManager::Update(real32 dt)
 				//TODO(George): Perform Object Culling for faster performance.
 				if(obj->layer == obj2->layer)
 				{
+					//Collision Testing
 					if(obj->CollisionAABB(obj2))
 					{
 						obj->HandleCollision(obj2);
@@ -1023,17 +1116,38 @@ void GameManager::Update(real32 dt)
 				{
 					if(Distance(player->pos, obj->pos) <= player->dims.y + 40)
 					{
-						if(player->pos.y < obj->pos.y)
+						if(player->pos.y + player->center.y < obj->pos.y)
 						{
 							player->layer = obj->layer;
+						}
+					}
+
+					if(!COM_strcmp(obj2->type, "enemy"))
+					{
+						if(Distance(obj2->pos, obj->pos) <= obj2->dims.y + 40)
+						{
+							if(obj2->pos.y + obj2->center.y < obj->pos.y)
+							{
+								obj2->layer = obj->layer;
+							}
 						}
 					}
 				}
 			}
 		}
 
-		player->Update(dt);
-		enemy->Update(dt);
+		//Update background on scroll
+		for(int i = 0; i < 2; i++)
+		{
+			if(bg[i]->pos.x + bg[i]->dims.x < 0)
+			{
+				bg[i]->pos.x += 2.0f * bg[i]->dims.x;
+			}
+			else if(bg[i]->pos.x > tileMap.width * tileMap.tileWidth/2)
+			{
+				bg[i]->pos.x -= 2.0f * bg[i]->dims.x;
+			}
+		}
 	}
 }
 
@@ -1045,10 +1159,6 @@ struct RenderObject
 		if(obj->layer > a.obj->layer)
 		{
 			return true;
-		}
-		else if( obj->layer == a.obj->layer)
-		{
-			return obj->pos.y > a.obj->pos.y;
 		}
 
 		return false;
@@ -1324,6 +1434,31 @@ void GameManager::Render()
 		}
 	}
 	
+	if(console.showDebug & SHOW_DEBUG_PATH)
+	{
+		for(int i = 0; i < path.GetCount(); i++)
+		{
+			PathNode* n = path.GetByIndex(i);
+			SDL_Rect rect = {0};
+			rect.x = n->pos.x;
+			rect.y = n->pos.y;
+			rect.w = 10;
+			rect.h = 10;
+
+			SDL_SetRenderDrawColor(renderer, 10, 10, 10, 255);
+
+			SDL_RenderFillRect(renderer, &rect);
+
+			if(n->next)
+			{
+				PathNode* n2 = n->next;
+
+				SDL_SetRenderDrawColor(renderer, 10, 10, 10, 255);
+				SDL_RenderDrawLine(renderer, n->pos.x+5, n->pos.y+5, n2->pos.x+5, n2->pos.y+5);
+			}
+		}
+	}
+
 	if(console.showDebug & SHOW_DEBUG_COLISION)
 	{
 		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 100);

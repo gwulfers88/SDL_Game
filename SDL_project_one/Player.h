@@ -2,13 +2,7 @@
 #define PLAYER_H
 
 #include "Entity.h"
-
-struct AnimInfo
-{
-	uint32 frameRate;
-	uint32 maxFrame;
-	vec2 clipDims;
-};	//struct size: 16 bytes
+#include "Animation.h"
 
 class Player : public Entity
 {
@@ -22,6 +16,7 @@ public:
 	void Draw(SDL_Renderer* renderer) override;
 	bool CollisionAABB(Entity* B) override;
 	void HandleCollision(Entity* B) override;
+	void Move(float dt);
 
 protected:
 	vec2				dir;
@@ -29,11 +24,11 @@ protected:
 	uint32				prevTime;
 	uint32				frame;
 	real32				speed;
+	real32				jumpTime;
 	AnimInfo			anim;
 	bool				animate;
-	bool				isJumping;
 	bool				isGrounded;
-	bool				isCrouching;
+	int32				lives;
 	bool				isAlive;
 };
 

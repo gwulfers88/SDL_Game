@@ -1,35 +1,35 @@
 #lvl_w 	lvl_h 	tile_w	tile_h	type	image	layer
-8	6	128	128	floor
+24	6	128	128	floor
 images/level_spritesheet.png
 1
 #level data layer one
-eeeeeeee
-eeeeeeee
-peeeeeee
-reeeelmm
-eeeeeeee
-eeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeueueeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeueee
+eeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeee
 
 #layer two
-eeeeeeee
-eeeeeeee
-eeeeeeeu
-eeeeeeee
-eeeeeeee
-eeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeee
+eeepeeneeeeeeeeeeeeeeeee
+eemmeemmmmreeeeeeeeeeeee
+eebbelbbbbeeeeeeeeeeeeee
+eebbeeeeeeeeeeeelmmmmmre
+eeeeeeeeeeeeeeeebbbbbbbe
 
 #layer three
-eeeeeeee
-eeeeeeee
-eeeeeeee
-eeeeeeee
-mmrelmmm
-bbbbbbbb
+eeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeee
+eueeeeueeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeee
+bbbbbbbbbbbbbbbbeeeeeeee
 
 #layer four
-eeeeeeee
-eeeeeeee
-eeeeeeee
-eueeeeue
-eeeeeeee
-ssssssss
+eeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeee
+eneeeeeneeeeeneeeeeeeeee
+mmrelmmmmmrelmreeeeeeeee
+ssssssssssssssssssssssss

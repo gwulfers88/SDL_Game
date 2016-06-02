@@ -36,9 +36,11 @@ public:
 	virtual void Update(real32 dt);
 	virtual bool CollisionAABB(Entity* B);
 	virtual void HandleCollision(Entity* B);
+
 protected:
-	SDL_Texture*	texture;	//Each sprite Object will have its own texture.
+	SDL_Texture*	texture;	//Each Entity will have its own texture.
 	SDL_Rect		colRect;	//
+	bool right;
 	vec2			pos;		//Position vector
 	vec2			dims;		//Dimension vector
 	vec2			center;		//
