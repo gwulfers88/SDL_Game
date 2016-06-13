@@ -1,0 +1,36 @@
+#lvl_w 	lvl_h 	tile_w	tile_h	type	numEnemy	levelSpriteSheet	level_config	layer
+32	6	128	128	floor	5
+images/level_spritesheet.png
+level1.cfg
+1
+#level data layer one
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+
+#layer two
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+
+#layer three
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeee3eeeeeeeeeeeeeeeee
+eeeeeeeeneeeeeee3e3eeeneeeeeeeee
+eeeeeee011112eeeeeee011112eeeeee
+eeeeeeee8888eeeeeeeee8888eeeeeee
+77777eeeeeeeeeeeeeeeeeeeeee77777
+
+#layer four
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeepeeeeeeneeeeeeeeeeeneeeeeeee
+eeee01111112bbbbbbb011111112eeee

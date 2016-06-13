@@ -45,24 +45,27 @@ Enemy::~Enemy()
 
 void Enemy::Draw(SDL_Renderer* renderer)
 {
-	SDL_Rect dest;
-	dest.x = (int32)pos.x;
-	dest.y = (int32)pos.y;
-	dest.w = (int32)dims.x;
-	dest.h = (int32)dims.y;
+	if(isAlive)
+	{
+		SDL_Rect dest;
+		dest.x = (int32)pos.x;
+		dest.y = (int32)pos.y;
+		dest.w = (int32)dims.x;
+		dest.h = (int32)dims.y;
 
-	SDL_Rect src;
+		SDL_Rect src;
 	
-	src.w = anim.clipDims.x;
-	src.h = anim.clipDims.y;
-	src.x = frame * src.w;
-	src.y = 6 * src.h;
+		src.w = anim.clipDims.x;
+		src.h = anim.clipDims.y;
+		src.x = frame * src.w;
+		src.y = 6 * src.h;
 	
-	SDL_Point c;
-	c.x = (int32)center.x;
-	c.y = (int32)center.y;
+		SDL_Point c;
+		c.x = (int32)center.x;
+		c.y = (int32)center.y;
 
-	SDL_RenderCopyEx(renderer, texture, &src, &dest, 0, &c, SDL_FLIP_NONE);
+		SDL_RenderCopyEx(renderer, texture, &src, &dest, 0, &c, SDL_FLIP_NONE);
+	}
 }
 
 void Enemy::Update(real32 dt)
@@ -82,7 +85,7 @@ void Enemy::Update(real32 dt)
 
 			if(right)
 			{
-				if(Distance(target->pos, pos) <= (dims.x / 2))
+				if(Distance(target->pos, pos) <= (center.x))
 				{
 					if(target->next)
 					{
@@ -96,7 +99,7 @@ void Enemy::Update(real32 dt)
 			}
 			else
 			{
-				if(Distance(target->pos, pos) <= (dims.x / 2) - 10)
+				if(Distance(target->pos, pos) <= (dims.x))
 				{
 					if(target->prev)
 					{
@@ -115,12 +118,10 @@ void Enemy::Update(real32 dt)
 		if(dir.x > 0 )
 		{
 			animate = true;
-			//facingDir = 1;
 		}
 		else if( dir.x < 0 )
 		{
 			animate = true;
-			//facingDir = 0;
 		}
 		else if(dir.x == 0)
 		{

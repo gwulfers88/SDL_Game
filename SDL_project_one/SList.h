@@ -19,7 +19,7 @@ template<class type>
 struct Node
 {
 	type value;
-	uint32 index;
+	//uint32 index;
 	Node<type>* next;
 };
 
@@ -64,7 +64,7 @@ public:
 		Node<type> *newNode = new Node<type>();
 		newNode->value = newVal;
 		newNode->next = 0;
-		newNode->index = count;
+		//newNode->index = count;
 
 		if(!head)
 		{
@@ -83,11 +83,13 @@ public:
 	// TODO (George): Make better delete function (double Pointers)
 	void RemoveItem( uint32 index )
 	{
+		uint32 currentIndex = 0;
+
 		if(head)
 		{
 			Node<type>* removeNode = head;
 
-			if(head->index == index)
+			if(currentIndex == index)
 			{
 				if(head->next)
 				{
@@ -96,16 +98,19 @@ public:
 
 				count--;
 				delete removeNode;
+				return;
 			}
 
 			Node<type>* iter = head;
 
 			while(iter->next != 0)
 			{
-				if(iter->index == index)
+				if(currentIndex == index)
 				{
 					break;
 				}
+
+				currentIndex++;
 			}
 
 			removeNode = iter;
@@ -158,18 +163,21 @@ public:
 
 	type GetByIndex(uint32 index)
 	{
+		uint32 currentIndex = 0;
+
 		if(head)
 		{
 			Node<type>* iter = head;
 
 			while(iter)
 			{
-				if(iter->index == index)
+				if(currentIndex == index)
 				{
 					return iter->value;
 				}
 
 				iter = iter->next;
+				currentIndex++;
 			}
 		}
 

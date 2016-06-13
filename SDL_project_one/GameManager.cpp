@@ -6,10 +6,20 @@
 	File:	GameManager.cpp
 
 	Desc: Manages the game and its subsystems.
+
+	TODO:
+
+	You will implement a simple scrolling game, similar to Gradius, Mario Bros, or Contra. This game will use the concepts already covered in class, including several others:
+	•	FSM (Finite State Machines) – perform at least 3 different animations for each character
+	•	Trees – for enemy pathing logic
+	•	File handling – to specify at least two different levels with different sets of enemies and backgrounds
+	•	Graphical User Interface using text and images – In game, include user feedback including number of lives and kills (or points)
+
 */
 #include "GameManager.h"
 #include "TileMap.h"
 #include "mem.h"
+#include "LevelFile.h"
 
 #define PI 3.14159
 
@@ -18,6 +28,8 @@ TTF_Font *font = 0;
 
 float worldWidth = 0;
 float worldHeight = 0;
+
+bool levelLoaded = false;
 
 SDL_Texture* StringToTexture(SDL_Renderer* renderer, int8* text, SDL_Color color)
 {
@@ -163,6 +175,10 @@ void EndRecordingInput(State* state)
 	state->inputRecordIndex = 0;
 }
 
+void ClearInputPlayback()
+{
+	DeleteFile("recording.gw");
+}
 
 void BeginInputPlayback(State *state, int inputPlaybackIndex)
 {
@@ -330,22 +346,83 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 					showDebug(&console, SHOW_DEBUG_CMD);
 				}
 			}
+			else if(checkCommand("/load_level"))
+			{
+				if(checkParam("show", 1))
+				{
+					glfPrintAll();
+				}
+				else
+				{
+					GLF* file = glfGetFile(getParam(1));
+
+					if(file)
+					{
+						COM_printf("loading level %s\n", file->filename);
+						if(levelLoaded)
+						{
+							UnloadContent();
+						}
+						LoadContent(file->filename);
+					}
+					else
+					{
+						COM_printf("Level file does not exist!\n");
+					}
+				}
+			}
+			else if(checkCommand("/unload_level"))
+			{
+				if(levelLoaded)
+				{
+					UnloadContent();
+				}
+			}
+			else if(checkCommand("/begin_playback"))
+			{
+				if(levelLoaded)
+				{
+					if(state.inputPlayIndex == 0)
+					{
+						BeginInputPlayback(&state, 1);
+					}
+				}
+			}
+			else if(checkCommand("/stop_playback"))
+			{
+				if(levelLoaded)
+				{
+					if(state.inputPlayIndex)
+					{
+						EndInputPlayback(&state);
+						ZeroMemory(&input, sizeof(input));
+					}
+				}
+			}
+			else if(checkCommand("/begin_recording"))
+			{
+				if(levelLoaded)
+				{
+					if(state.inputRecordIndex == 0)
+					{
+						BeginRecordingInput(&state, 1);
+					}
+				}
+			}
+			else if(checkCommand("/stop_recording"))
+			{
+				if(levelLoaded)
+				{
+					if(state.inputRecordIndex)
+					{
+						EndRecordingInput(&state);
+					}
+				}
+			}
 			else if(checkCommand("/exit"))
 			{
 				if(MessageBox(0, "Are you sure you would like to exit?", "WARNING", MB_OKCANCEL) == IDOK)
 					Exit();
-			}
-			else if(checkCommand("/help"))
-			{
-				system("cls");
-				ShowWindow( GetConsoleWindow(), SW_SHOW );
-				COM_print("Commands: /[command] [parameter]\n");
-				COM_print("show_debug\t(grid, layers, col)\tShows visual debug info.\n");
-				COM_print("mem_check\t(low, high)\t\tChecks low memory integrity.\n");
-				COM_print("exit\t\t\texit program.\n");
-				COM_print("\nPress Enter to Continue...\n");
-				getchar();
-				ShowWindow( GetConsoleWindow(), SW_HIDE );
 			}
 			else if(checkCommand("/mem_check"))
 			{
@@ -357,12 +434,32 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 				{
 					MemCheckHigh();
 				}
+				else if(checkParam("info", 1))
+				{
+					MemInfo();
+				}
 				else if(checkParam("\0", 1))
 				{
 					MemInfo();
 					MemCheck();
 					MemCheckHigh();
 				}
+			}
+			else if(checkCommand("/help"))
+			{
+				system("cls");
+				ShowWindow( GetConsoleWindow(), SW_SHOW );
+				COM_print("Commands: /[command] [parameter]\n");
+				COM_print("show_debug\t(grid, layers, col, all, cmd)\tShows visual debug info.\n");
+				COM_print("mem_check\t(low, high, info)\t\tChecks low memory integrity.\n");
+				COM_print("load_level\t(filename)\t\tLoads level file into memory\n");
+				COM_print("unload_level\t\t\tUnloads level file from memory\n");
+				COM_print("begin_playback\t\t\tload recorded file and plays it back.\n");
+				COM_print("stop_playback\t\t\tunloads recorded file.\n");
+				COM_print("begin_recording\t\t\trecords game state into file.\n");
+				COM_print("stop_recording\t\t\tstops recording.\n");
+				COM_print("exit\t\t\texit program.\n");
+				COM_print("\nPress Enter to Continue...\n");
 			}
 		}
 		else if(evnt.key.keysym.sym == SDLK_RETURN && !console.isConsoleActive)
@@ -373,7 +470,7 @@ void GameManager::SDLProcEvent(SDL_Event& evnt)
 			if(evnt.key.keysym.sym == SDLK_ESCAPE && !evnt.key.repeat)
 				input.back.isDown = true;
 
-			if(evnt.key.keysym.sym == SDLK_SPACE && !evnt.key.repeat)
+			if(evnt.key.keysym.sym == SDLK_SPACE )//&& !evnt.key.repeat)
 				input.start.isDown = true;
 
 			if(evnt.key.keysym.sym == SDLK_q && !evnt.key.repeat)
@@ -569,8 +666,46 @@ void CreatePathNode(SList<PathNode*>* path, vec2 pos)
 	path->Insert(node);
 }
 
+void GameManager::loadAnimations(Player* player, char* animFile)
+{
+	ifstream file;
+	file.open(animFile);
+
+	if(file.fail())
+		return;
+
+	char content[MAX_PATH];
+	ZeroMemory(content, sizeof(content));
+
+	file.getline(content, sizeof(content));
+
+	char imageFile[MAX_PATH];
+	string state = " ";
+
+	file >> imageFile;
+
+	player->texture = LoadTexture(imageFile);
+
+	while(!file.eof())
+	{
+		AnimInfo* anim = (AnimInfo*)MemAllocName(sizeof(AnimInfo), "p_anim");
+
+		file >>	state
+			 >>	anim->maxFrame
+			 >>	anim->frameRate
+			 >>	anim->clipPos.x
+			 >>	anim->clipPos.y
+			 >>	anim->clipDims.x
+			 >>	anim->clipDims.y;
+
+		player->anim[state] = anim;
+	}
+
+	file.close();
+}
+
 //Loads content that will be used for this game
-void GameManager::LoadContent()
+void GameManager::LoadContent(int8* filename)
 {
 	//LOAD LEVEL ONE INFO
 	COM_print("\nLOAD LEVEL FILE START\n");
@@ -578,28 +713,37 @@ void GameManager::LoadContent()
 	ZeroMemory(&tileMap, sizeof(tileMap));
 
 	ifstream levelFile;
-	levelFile.open("level1.txt");
+	levelFile.open(filename);
 
 	if(levelFile.fail())
 		return;
 
 	char type[8] = {0};
 	char imagefile[30] = {0};
+	char levelDataFile[30] = {0};
 	char data[256] = {0};
 
 	int y = 0;
 	int layer = 0;
-	
+	int numEnemies = 0;
+
 	vec2 playerPos = {0};
 	uint32 enemyIndex = 0;
-#define MAX_ENEMY_COUNT 4
-	vec2 enemyPos[MAX_ENEMY_COUNT] = {0};
-
+	
 	//Read jump header info
 	levelFile.getline(data, sizeof(data));
-	levelFile >> tileMap.width >> tileMap.height >> tileMap.tileWidth >> tileMap.tileHeight >> type;
-	levelFile >> imagefile;
-	levelFile >> layer;
+	levelFile	>> tileMap.width
+				>> tileMap.height
+				>> tileMap.tileWidth
+				>> tileMap.tileHeight
+				>> type
+				>> numEnemies;
+
+	levelFile	>> imagefile;
+	levelFile	>> levelDataFile;
+	levelFile	>> layer;
+
+	vec2 *enemyPos = new vec2[numEnemies];
 
 	worldWidth = tileMap.width * tileMap.tileWidth;
 	worldHeight = tileMap.height * tileMap.tileHeight;
@@ -630,37 +774,7 @@ void GameManager::LoadContent()
 
 			switch(data[x])
 			{
-			case 'e':
-				break;
-
-			case 'b':
-				entity = (Entity*)MemAllocName(sizeof(Entity), "block");
-				new (entity) Entity;
-				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
-				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
-				COM_strncpy(entity->type, "block", 8);
-				entity->layer = layer;
-				entity->texture = LoadTexture(imagefile);	//TODO: should we use and lookup Texture ID?
-				entity->CalculateMidpoint();
-				entity->tileID = 8;
-				entities.Insert(entity);
-				break;
-
-			case 'u':
-				entity = (Entity*)MemAllocName(sizeof(Entity), "bush");
-				new (entity) Entity;
-				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
-				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
-				COM_strncpy(entity->type, "bush", 8);
-				entity->layer = layer;
-				entity->texture = LoadTexture(imagefile);
-				entity->CalculateMidpoint();
-				
-				entity->tileID = 5;
-				entities.Insert(entity);
-				break;
-
-			case 'l':
+			case '0':
 				entity = (Entity*)MemAllocName(sizeof(Entity), "floorL");
 				new (entity) Entity;
 				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
@@ -679,7 +793,7 @@ void GameManager::LoadContent()
 				CreatePathNode(&path, Vec2(entity->pos.x + (entity->dims.x * 0.5f), entity->pos.y - (tileMap.tileHeight * 0.5f)));
 				break;
 
-			case 'm':
+			case '1':
 				entity = (Entity*)MemAllocName(sizeof(Entity), "floorM");
 				new (entity) Entity;
 				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
@@ -696,9 +810,10 @@ void GameManager::LoadContent()
 				entities.Insert(entity);
 				
 				CreatePathNode(&path, Vec2(entity->pos.x + (entity->dims.x * 0.5f), entity->pos.y - (tileMap.tileHeight * 0.5f)));
+
 				break;
 
-			case 'r':
+			case '2':
 				entity = (Entity*)MemAllocName(sizeof(Entity), "floorR");
 				new (entity) Entity;
 				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
@@ -717,7 +832,121 @@ void GameManager::LoadContent()
 				CreatePathNode(&path, Vec2(entity->pos.x + (entity->dims.x * 0.5f), entity->pos.y - (tileMap.tileHeight * 0.5f)));
 				break;
 
-			case 's':
+			case '3':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "floor");
+				new (entity) Entity;
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
+				COM_strncpy(entity->type, type, 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(imagefile);
+				entity->CalculateMidpoint();
+				entity->colRect.x = entity->pos.x;
+				entity->colRect.y = entity->pos.y;
+				entity->colRect.w = entity->dims.x;
+				entity->colRect.h = entity->center.y;
+				entity->tileID = 3;
+				entities.Insert(entity);
+				break;
+
+			case '4':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "bush");
+				new (entity) Entity;
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
+				COM_strncpy(entity->type, "bush", 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(imagefile);
+				entity->CalculateMidpoint();
+				
+				entity->tileID = 4;
+				entities.Insert(entity);
+				break;
+
+			case '5':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "bush");
+				new (entity) Entity;
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
+				COM_strncpy(entity->type, "bush", 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(imagefile);
+				entity->CalculateMidpoint();
+				
+				entity->tileID = 5;
+				entities.Insert(entity);
+				break;
+
+			case '6':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "grass");
+				new (entity) Entity;
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
+				COM_strncpy(entity->type, "grass", 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(imagefile);
+				entity->CalculateMidpoint();
+				
+				entity->tileID = 6;
+				entities.Insert(entity);
+				break;
+
+			case '7':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "waterT");
+				new (entity) Entity;
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
+				COM_strncpy(entity->type, "waterT", 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(imagefile);
+				entity->CalculateMidpoint();
+				
+				entity->tileID = 7;
+				entities.Insert(entity);
+				break;
+
+			case '8':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "block");
+				new (entity) Entity;
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
+				COM_strncpy(entity->type, "block", 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(imagefile);	//TODO: should we use and lookup Texture ID?
+				entity->CalculateMidpoint();
+				entity->tileID = 8;
+				entities.Insert(entity);
+				break;
+
+			case '9':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "waterF");
+				new (entity) Entity;
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
+				COM_strncpy(entity->type, "waterF", 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(imagefile);
+				entity->CalculateMidpoint();
+				
+				entity->tileID = 9;
+				entities.Insert(entity);
+				break;
+
+			case 'a':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "flower");
+				new (entity) Entity;
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
+				COM_strncpy(entity->type, "flower", 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(imagefile);
+				entity->CalculateMidpoint();
+				
+				entity->tileID = 10;
+				entities.Insert(entity);
+				break;
+
+			case 'b':
 				entity = (Entity*)MemAllocName(sizeof(Entity), "spike");
 				new (entity) Entity;
 				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
@@ -734,15 +963,46 @@ void GameManager::LoadContent()
 				entities.Insert(entity);
 				break;
 
+			case 'c':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "flower");
+				new (entity) Entity;
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
+				COM_strncpy(entity->type, "flower", 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(imagefile);
+				entity->CalculateMidpoint();
+				
+				entity->tileID = 12;
+				entities.Insert(entity);
+				break;
+
+			case 'd':
+				entity = (Entity*)MemAllocName(sizeof(Entity), "grass");
+				new (entity) Entity;
+				entity->dims = Vec2((real32)tileMap.tileWidth, (real32)tileMap.tileHeight);
+				entity->pos = Vec2((real32)x * entity->dims.x, (real32)y * entity->dims.y);
+				COM_strncpy(entity->type, "grass", 8);
+				entity->layer = layer;
+				entity->texture = LoadTexture(imagefile);
+				entity->CalculateMidpoint();
+				
+				entity->tileID = 13;
+				entities.Insert(entity);
+				break;
+
 			case 'p':
 				playerPos = Vec2((real32)x, (real32)y);
 				break;
 
 			case 'n':
-				if(enemyIndex < MAX_ENEMY_COUNT)
+				if(enemyIndex < numEnemies)
 				{
 					enemyPos[enemyIndex++] = Vec2((real32)x * tileMap.tileWidth, (real32)y * tileMap.tileHeight);
 				}
+				break;
+
+			default:
 				break;
 			}
 
@@ -770,7 +1030,16 @@ void GameManager::LoadContent()
 			{
 				n1->next = n2;
 				n2->prev = n1;
-			}
+			}			
+		}
+	}
+
+	for( int i = 0; i < path.GetCount(); i++)
+	{
+		PathNode* n1 = path.GetByIndex(i);
+		if(!n1->next && !n1->prev)
+		{
+			path.RemoveItem(i--);
 		}
 	}
 
@@ -779,15 +1048,15 @@ void GameManager::LoadContent()
 	/// CONFIG FILE LOADING
 
 	ifstream file;
-	file.open("config.txt");
+	file.open(levelDataFile);
 
 	if(file.fail())
 		return;
 	
-	int8 content[40];
+	int8 content[MAX_PATH];
 	int bgIndex = 0;
 
-	COM_print("\nLOAD CONFIG FILE START\n");
+	COM_print("\nLOAD LEVEL DATA FILE START\n");
 
 	enemyIndex = 0;
 
@@ -822,11 +1091,12 @@ void GameManager::LoadContent()
 		if(!COM_strcmp(obj.type, "player"))
 		{
 			temp = (Player*)MemAllocName(sizeof(Player), obj.name);
-			new(temp) Player;	//Initialize the class constructor.
 			player = (Player*)temp;	//Isolate player
+			new(player) Player;	//Initialize the class constructor.
 			temp->pos = Vec2(playerPos.x * tileMap.tileWidth, playerPos.y * tileMap.tileHeight);
+			loadAnimations(player, obj.filename);
 		}
-		else if(!COM_strcmp(obj.type, "enemy") && enemyIndex < MAX_ENEMY_COUNT)
+		else if(!COM_strcmp(obj.type, "enemy") && enemyIndex < numEnemies)
 		{
 			PathNode* target = 0;
 			for(int i = 0; i < path.GetCount(); i++)
@@ -842,8 +1112,8 @@ void GameManager::LoadContent()
 			new(temp) Enemy;	//Initialize the class constructor.
 			Enemy* e = (Enemy*)temp;
 			e->target = target;
-			//temp->tileID = 10;
 			temp->pos = Vec2(enemyPos[enemyIndex].x, enemyPos[enemyIndex].y);
+			temp->texture = LoadTexture(obj.filename);
 			enemyIndex++;
 		}
 		else
@@ -851,12 +1121,12 @@ void GameManager::LoadContent()
 			temp = (Entity*)MemAllocName(sizeof(Entity), obj.name);
 			new(temp) Entity;	//Initialize the class constructor.
 			temp->pos = Vec2(obj.pos.x, obj.pos.y);
+			temp->texture = LoadTexture(obj.filename);
 		}
 		
 		//
 		temp->layer = obj.layer;
 		COM_strncpy(temp->type, obj.type, 8);	//Copy only the first 8 bytes of the string.
-		temp->texture = LoadTexture(obj.filename);
 		
 		//if BG type
 		if(!COM_strcmp(obj.type, "bg"))
@@ -884,10 +1154,38 @@ void GameManager::LoadContent()
 			continue;
 	}
 	
+	if(enemyPos)
+	{
+		delete[] enemyPos;
+	}
+
 	COM_print("\nLOAD CONFIG FILE END\n");
 
 	file.close();	//Close file
 
+	levelLoaded = true;
+}
+
+void GameManager::UnloadContent()
+{
+	if(levelLoaded)
+	{
+		player->anim.clear();
+
+		uint32 highMark = CalculateHighMark();
+		FreeToHighMark(highMark);
+
+		uint32 lowMark = CalculateLowMark();
+		FreeToLowMark(lowMark);
+		
+		entities.Clear();
+		resourceManager.Clear();
+		path.Clear();
+		player = 0;
+		
+		levelLoaded = false;
+	}
+	
 }
 
 DWORD elapsed = 0;
@@ -899,8 +1197,8 @@ void GameManager::Run()
 	if(!Init())
 		return;
 
-	//Load game content
-	LoadContent();
+	glfInit();
+	glfFindFiles();
 
 	MemInfo();
 	MemCheck();
@@ -976,21 +1274,19 @@ vec2 safeArea = {0};
 void GameManager::Update(real32 dt)
 {
 	GUIUpdateButton(&showInfo, &input.mouse);
-	GUIUpdateButton(&memReset, &input.mouse);
-	GUIUpdateButton(&reloadContent, &input.mouse);
+	//GUIUpdateButton(&memReset, &input.mouse);
+	//GUIUpdateButton(&reloadContent, &input.mouse);
 
 	if(isResetNeeded)
 	{
-		FreeToHighMark(128);
-		FreeToLowMark(32);
-		entities.Clear();
-		resourceManager.Clear();
-		path.Clear();
-		player = 0;
+		if(levelLoaded)
+		{
+			UnloadContent();
+		}
 
 		if(isReloadNeeded)
 		{
-			LoadContent();
+			//LoadContent();
 
 			isResetNeeded = false;
 			isReloadNeeded = false;
@@ -1036,18 +1332,19 @@ void GameManager::Update(real32 dt)
 			}
 		}
 
-		//Crouch and drop
-		if(input.actionDown.isDown && input.rightBumper.isDown)
+		//Jump code
+		if(input.actionUp.isDown && player->isGrounded && !player->isJumping)
 		{
-			player->layer++;
+			player->isJumping = true;
 		}
 
-		//Jump code
-		if(input.actionUp.isDown && player->isGrounded)
+		if(player->isJumping)
 		{
 			player->jumpTime = 1.0f;
+			player->state = "jump";
+			player->isJumping = false;
 		}
-	
+
 		if(player->jumpTime > 0)
 		{
 			player->isGrounded = false;
@@ -1060,35 +1357,43 @@ void GameManager::Update(real32 dt)
 		player->Move(dt);
 		player->Update(dt);
 
+		//Update background on scroll
+		for(int i = 0; i < 2; i++)
+		{
+			if(bg[i]->pos.x + bg[i]->dims.x < 0)
+			{
+				bg[i]->pos.x += 2.0f * bg[i]->dims.x;
+			}
+			else if(bg[i]->pos.x > tileMap.width * tileMap.tileWidth/2)
+			{
+				bg[i]->pos.x -= 2.0f * bg[i]->dims.x;
+			}
+		}
+
 		for(uint32 i = 0; i < entities.GetCount(); i++)
 		{
 			//HANDLE SCROLLING
 			if(player->dir.x > 0)	//PLAYER RIGHT
-			{
-				//if(player->pos.x + player->dims.x >= safeArea.y)	//<---- FIX ME!!
+			{	
+				if(i < path.GetCount())
 				{
-					entities.GetByIndex(i)->pos.x -= player->speed * dt;
-					
-					if(i < path.GetCount())
-					{
-						path.GetByIndex(i)->pos.x -= player->speed * dt;
-					}
+					path.GetByIndex(i)->pos.x -= player->speed * dt;
 				}
+
+				entities.GetByIndex(i)->pos.x -= player->speed * dt;
 			}
 			else if(player->dir.x < 0)	//PLAYER LEFT
 			{
-				//if(player->pos.x <= safeArea.x)	//<---- FIX ME!!
+				if(i < path.GetCount())
 				{
-					entities.GetByIndex(i)->pos.x += player->speed * dt;
-					if(i < path.GetCount())
-					{
-						path.GetByIndex(i)->pos.x += player->speed * dt;
-					}
+					path.GetByIndex(i)->pos.x += player->speed * dt;
 				}
+
+				entities.GetByIndex(i)->pos.x += player->speed * dt;
 			}
-						
+
 			entities.GetByIndex(i)->Update(dt);
-						
+
 			for(int j = i + 1; j < entities.GetCount(); j++)
 			{
 				if(!COM_strcmp(entities.GetByIndex(i)->type, "bg") || !COM_strcmp(entities.GetByIndex(j)->type, "bg"))
@@ -1133,19 +1438,6 @@ void GameManager::Update(real32 dt)
 						}
 					}
 				}
-			}
-		}
-
-		//Update background on scroll
-		for(int i = 0; i < 2; i++)
-		{
-			if(bg[i]->pos.x + bg[i]->dims.x < 0)
-			{
-				bg[i]->pos.x += 2.0f * bg[i]->dims.x;
-			}
-			else if(bg[i]->pos.x > tileMap.width * tileMap.tileWidth/2)
-			{
-				bg[i]->pos.x -= 2.0f * bg[i]->dims.x;
 			}
 		}
 	}
@@ -1205,12 +1497,12 @@ void GameManager::OnGUI(void)
 	yOffset += showInfo.border.h + 10;
 
 	CreateGUIButton(&memReset, xOffset, yOffset, StringToTexture(renderer, "free content", color), FreeContent);
-	DrawGUIButton(renderer, &memReset);
+	//DrawGUIButton(renderer, &memReset);
 	
 	yOffset += memReset.border.h + 10;
 
 	CreateGUIButton(&reloadContent, xOffset, yOffset, StringToTexture(renderer, "reload content", color), ReloadContent);
-	DrawGUIButton(renderer, &reloadContent);
+	//DrawGUIButton(renderer, &reloadContent);
 
 	GUIText txtState;
 	
@@ -1235,6 +1527,63 @@ void GameManager::OnGUI(void)
 	}
 
 	DrawGUIText(renderer, &txtState);
+
+	if(!levelLoaded)
+	{
+		color.a = 255;
+		color.r = 255;
+		color.g = 50;
+		color.b = 50;
+		GUIText text = {0};
+	
+		int8 data[256] = "use the command line to load levels and unload levels.";
+
+		text.pos = Vec2(100, 100);
+		text.texture = StringToTexture(renderer, data, color);
+		DrawGUIText(renderer, &text);
+
+		float offsety = text.pos.y + text.dims.y;
+		ZeroMemory(data, sizeof(data));
+		COM_strcpy(data, "Load levels: /load_level [filename] (ex. /load_level level1.glf)");
+		text.pos = Vec2(100, offsety);
+		text.texture = StringToTexture(renderer, data, color);
+		DrawGUIText(renderer, &text);
+
+		offsety = text.pos.y + text.dims.y;
+		ZeroMemory(data, sizeof(data));
+		COM_strcpy(data, "unload current level: /unload_level");
+		text.pos = Vec2(100, offsety);
+		text.texture = StringToTexture(renderer, data, color);
+		DrawGUIText(renderer, &text);
+
+		offsety = text.pos.y + text.dims.y;
+		ZeroMemory(data, sizeof(data));
+		COM_strcpy(data, "list available levels: /load_level show");
+		text.pos = Vec2(100, offsety);
+		text.texture = StringToTexture(renderer, data, color);
+		DrawGUIText(renderer, &text);
+
+		offsety = text.pos.y + text.dims.y;
+		ZeroMemory(data, sizeof(data));
+		COM_strcpy(data, "A, D: move player left or right");
+		text.pos = Vec2(100, offsety);
+		text.texture = StringToTexture(renderer, data, color);
+		DrawGUIText(renderer, &text);
+
+		offsety = text.pos.y + text.dims.y;
+		ZeroMemory(data, sizeof(data));
+		COM_strcpy(data, "W: Jump");
+		text.pos = Vec2(100, offsety);
+		text.texture = StringToTexture(renderer, data, color);
+		DrawGUIText(renderer, &text);
+
+		offsety = text.pos.y + text.dims.y;
+		ZeroMemory(data, sizeof(data));
+		COM_strcpy(data, "Enter, '/': enables commadn line (use /help for a list of commands)");
+		text.pos = Vec2(100, offsety);
+		text.texture = StringToTexture(renderer, data, color);
+		DrawGUIText(renderer, &text);
+	}
 
 	if(showGuiInfo)
 	{
@@ -1446,7 +1795,6 @@ void GameManager::Render()
 			rect.h = 10;
 
 			SDL_SetRenderDrawColor(renderer, 10, 10, 10, 255);
-
 			SDL_RenderFillRect(renderer, &rect);
 
 			if(n->next)
@@ -1498,6 +1846,8 @@ void GameManager::Cleanup()
 {
 	SDL_StopTextInput();
 
+	ClearInputPlayback();
+
 	if(font)
 	{
 		TTF_CloseFont(font);
@@ -1510,6 +1860,15 @@ void GameManager::Cleanup()
 		SDL_DestroyRenderer(renderer);
 	}
 	
+	if(player)
+	{
+		player->anim.clear();
+	}
+
+	entities.Clear();
+	path.Clear();
+	resourceManager.Clear();
+
 	//Frees the entire memory block
 	FreeMemBlock();
 

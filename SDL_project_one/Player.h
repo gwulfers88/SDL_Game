@@ -3,6 +3,8 @@
 
 #include "Entity.h"
 #include "Animation.h"
+#include <string>
+#include <map>
 
 class Player : public Entity
 {
@@ -19,15 +21,17 @@ public:
 	void Move(float dt);
 
 protected:
+	bool spawned;
+	SDL_RendererFlip facing;
 	vec2				dir;
-	int32				facingDir;
 	uint32				prevTime;
 	uint32				frame;
 	real32				speed;
 	real32				jumpTime;
-	AnimInfo			anim;
-	bool				animate;
+	string				state;
+	map<string, AnimInfo*>	anim;
 	bool				isGrounded;
+	bool				isJumping;
 	int32				lives;
 	bool				isAlive;
 };

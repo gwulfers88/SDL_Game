@@ -14,7 +14,7 @@
 int main( int argc, char* args[] )
 {
 	MemoryInit(malloc(MEMORY_SIZE), MEMORY_SIZE);	//Initialize memory chunk allocations
-
+	
 	GameManager game;
 
 	game.Run();

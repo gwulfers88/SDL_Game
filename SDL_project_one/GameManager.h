@@ -51,11 +51,15 @@ public :
 
 private:
 	//Loads the file from disk into memory
+	void loadAnimations(Player* player, char* animFile);
 	SDL_Texture* LoadTexture(int8* filename);
 	vec2 DimFromTexture(SDL_Texture* texture);
 
 	void SDLProcEvent(SDL_Event& evnt);
-	void LoadContent(void);
+	
+	void LoadContent(int8* filename);
+	void UnloadContent(void);
+
 	void Cleanup(void);
 	void Exit(void);
 	void OnGUI(void);

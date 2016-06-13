@@ -41,17 +41,20 @@ void* GetMemBlock(void);
 int GetTotalSize(void);
 
 void MemoryInit(void *Buffer, int32 BufferSize);					//Initialize the memory buffer.
+
 void *MemAllocName(uint32 RequestSize, int8* RequestName);			//Allocates memory to the bottom of the memory
 void *MemAlloc(uint32 RequestSize);
 void FreeMemBlock(void);
 void FreeToLowMark(int32 Mark);
 void MemCheck(void);
+uint32 CalculateLowMark(void);
 
 //Allocates memory to the High part.
 void* MemHighAllocName(uint32 RequestSize, int8* RequestName);
 void* MemHighAlloc(uint32 RequestSize);
 void FreeToHighMark( int32 Mark );
 void MemCheckHigh(void);
+uint32 CalculateHighMark();
 
 void MemInfo(void);
 

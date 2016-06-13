@@ -129,6 +129,57 @@ void FreeMemBlock(void)
 	}
 }
 
+uint32 CalculateLowMark()
+{
+	uint32 result = 0;
+
+	MemHeader* header = (MemHeader*)Mem.MemBase;
+
+	while ((int8*)header != (int8*)Mem.MemBase + Mem.MemOffset)
+	{
+		MemHeader* next = (MemHeader*)((int8*)header + header->MemorySize);
+		if(next->MemorySentinel == MEMORY_SENTINAL)	//valid mem location found
+		{
+			result += header->MemorySize;
+
+			if(!COM_strcmp(header->MemoryName, "glf") && COM_strcmp(next->MemoryName, "glf"))
+			{
+				break;
+			}
+			else
+			{
+				header = next;
+			}
+		}
+		else
+		{
+			result += header->MemorySize;
+			break;
+		}
+	}
+
+	return result;
+}
+
+uint32 CalculateHighMark()
+{
+	uint32 result = 0;
+
+	MemHeader* header = (MemHeader*)((int8*)Mem.MemBase + Mem.MemSize - Mem.MemHighOffset);
+
+	while(((int8*)header != (int8*)Mem.MemBase + Mem.MemSize))
+	{
+		if(!COM_strcmp(header->MemoryName, "cmdline"))
+		{
+			result += header->MemorySize;
+		}
+
+		header = (MemHeader*)((int8*)header + header->MemorySize);
+	}
+
+	return result;
+}
+
 //Check integrity of our memory allocations
 void MemCheck(void)
 {

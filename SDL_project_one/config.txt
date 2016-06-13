@@ -1,8 +1,0 @@
-# name	type	layer	img				x 	y 	w 	h
-player	player	3	images/megaman.png 		64 	576 	96	96
-enemy1	enemy	3	images/mario_spritesheet.png	564 	376 	96	96
-enemy2	enemy	3	images/mario_spritesheet.png	820	376 	96	96
-enemy3	enemy	3	images/mario_spritesheet.png	900 	376 	96	96
-enemy4	enemy	3	images/mario_spritesheet.png	900 	376 	96	96
-bg	bg	0	images/bg_sky.png		0	0	100	100
-bg2	bg	0	images/bg_sky.png		1024	0	100	100

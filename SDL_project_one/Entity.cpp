@@ -51,6 +51,13 @@ void Entity::Update(real32 dt)
 		colRect.w = dims.x;
 		colRect.h = center.y;
 	}
+	else if(!COM_strcmp(type, "spike"))
+	{
+		colRect.x = pos.x;
+		colRect.y = pos.y + center.y;
+		colRect.w = dims.x;
+		colRect.h = center.y;
+	}
 }
 
 //Used to draw each object.
