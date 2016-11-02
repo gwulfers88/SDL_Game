@@ -139,7 +139,7 @@ void Player::Draw(SDL_Renderer* renderer)
 	dest.y = (int32)pos.y;
 	dest.w = (int32)dims.x;
 	dest.h = (int32)dims.y;
-
+	
 	SDL_Rect src;
 	
 	src.w = anim[state]->clipDims.x;

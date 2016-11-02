@@ -1030,7 +1030,7 @@ void GameManager::LoadContent(int8* filename)
 			{
 				n1->next = n2;
 				n2->prev = n1;
-			}			
+			}
 		}
 	}
 
@@ -1572,7 +1572,7 @@ void GameManager::OnGUI(void)
 
 		offsety = text.pos.y + text.dims.y;
 		ZeroMemory(data, sizeof(data));
-		COM_strcpy(data, "W: Jump");
+		COM_strcpy(data, "SPACE: Jump");
 		text.pos = Vec2(100, offsety);
 		text.texture = StringToTexture(renderer, data, color);
 		DrawGUIText(renderer, &text);
@@ -1583,6 +1583,25 @@ void GameManager::OnGUI(void)
 		text.pos = Vec2(100, offsety);
 		text.texture = StringToTexture(renderer, data, color);
 		DrawGUIText(renderer, &text);
+	}
+	else
+	{
+		color.a = 255;
+		color.r = 0;
+		color.g = 0;
+		color.b = 0;
+		GUIText lives = {0};
+	
+		int8 data[256] = "Lives: ";
+		int8 buffer[16] = {0};
+
+		if(player)
+		{
+			COM_strcat(data, itoa(player->lives, buffer, 10));
+		}
+		lives.pos = Vec2(10, 10);
+		lives.texture = StringToTexture(renderer, data, color);
+		DrawGUIText(renderer, &lives);
 	}
 
 	if(showGuiInfo)
